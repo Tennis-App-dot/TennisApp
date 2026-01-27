@@ -1,0 +1,195 @@
+﻿<Page
+    x:Class="TennisApp.Presentation.Pages.CourseFormPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TennisApp.Presentation.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="#F5F5F5"
+    FontFamily="ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai">
+
+    <Grid Padding="40,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" 
+                   Text="ข้อมูลคอร์ส" 
+                   FontSize="32" 
+                   FontWeight="Bold"
+                   Margin="0,0,0,30"/>
+
+        <!-- Form Container -->
+        <Border Grid.Row="1" 
+                Background="#8BC34A" 
+                CornerRadius="8"
+                Padding="40">
+            
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Title -->
+                <TextBlock Grid.Row="0" 
+                           Text="เพิ่มคอร์ส"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,40"/>
+
+                <!-- Form Content -->
+                <Grid Grid.Row="1" MaxWidth="800" HorizontalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="30"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="30"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Row 1: รหัสคอร์ส และ ชื่อคอร์ส -->
+                    <StackPanel Grid.Row="0" Grid.Column="0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="รหัสคอร์ส" FontSize="16"/>
+                            <TextBlock Text=" *" Foreground="Red" FontWeight="Bold"/>
+                        </StackPanel>
+                        <TextBox x:Name="TxtCourseId"
+                                 PlaceholderText="TA01, T104, P201"
+                                 Background="White"
+                                 Height="40"
+                                 FontSize="16"
+                                 MaxLength="4"
+                                 TextChanged="TxtCourseId_TextChanged"
+                                 CharacterCasing="Upper"/>
+                        <TextBlock x:Name="TxtCourseIdHint"
+                                   FontSize="12"
+                                   Foreground="#666666"
+                                   Margin="0,4,0,0"
+                                   TextWrapping="Wrap"
+                                   Text="รูปแบบ: XX## (ประเภท 2 ตัว + ครั้ง 2 หลัก)"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="0" Grid.Column="2">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="ชื่อคอร์ส" FontSize="16"/>
+                            <TextBlock Text=" *" Foreground="Red" FontWeight="Bold"/>
+                        </StackPanel>
+                        <TextBox x:Name="TxtCourseName"
+                                 PlaceholderText="กรอกชื่อคอร์ส"
+                                 Background="White"
+                                 Height="40"
+                                 FontSize="16"/>
+                    </StackPanel>
+
+                    <!-- Row 2: จำนวนครั้งในการเรียน และ ระยะเวลาเรียน -->
+                    <StackPanel Grid.Row="2" Grid.Column="0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="จำนวนครั้งในการเรียน" FontSize="16"/>
+                            <TextBlock Text=" *" Foreground="Red" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtSessionsAutoIndicator"
+                                       Text=" (อัตโนมัติ)"
+                                       FontSize="14"
+                                       Foreground="#4CAF50"
+                                       FontStyle="Italic"
+                                       Visibility="Collapsed"/>
+                        </StackPanel>
+                        <TextBox x:Name="TxtSessions"
+                                 PlaceholderText="1-99"
+                                 Background="White"
+                                 Height="40"
+                                 FontSize="16"
+                                 InputScope="Number"
+                                 MaxLength="2"/>
+                        <TextBlock FontSize="12"
+                                   Foreground="#666666"
+                                   Margin="0,4,0,0"
+                                   Text="จำนวนครั้ง: 01-99"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="2">
+                        <TextBlock Text="ระยะเวลาเรียน (ช.ม.)/ครั้ง" 
+                                   Margin="0,0,0,8"
+                                   FontSize="16"/>
+                        <TextBox x:Name="TxtDuration"
+                                 Text="1"
+                                 IsReadOnly="True"
+                                 Background="White"
+                                 Foreground="#757575"
+                                 Height="40"
+                                 FontSize="16"/>
+                    </StackPanel>
+
+                    <!-- Row 3: ค่าสมัครคอร์ส และ อาจารย์ผู้รับผิดชอบ -->
+                    <StackPanel Grid.Row="4" Grid.Column="0">
+                        <TextBlock Text="ค่าสมัครคอร์ส" 
+                                   Margin="0,0,0,8"
+                                   FontSize="16"/>
+                        <TextBox x:Name="TxtCourseFee"
+                                 PlaceholderText="2200.00"
+                                 Background="White"
+                                 Height="40"
+                                 FontSize="16"
+                                 InputScope="Number"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="4" Grid.Column="2">
+                        <TextBlock Text="อาจารย์ผู้รับผิดชอบคอร์ส" 
+                                   Margin="0,0,0,8"
+                                   FontSize="16"/>
+                        <ComboBox x:Name="CmbTrainer"
+                                  Background="White"
+                                  Height="40"
+                                  HorizontalAlignment="Stretch"
+                                  FontSize="16"
+                                  PlaceholderText="เลือกอาจารย์">
+                            <ComboBoxItem Content="อริสา ชัยพร"/>
+                            <ComboBoxItem Content="รังกิจ ศรีสมบูรณ์"/>
+                            <ComboBoxItem Content="จิราวัฒน์ ชมทอง"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Action Buttons -->
+                <StackPanel Grid.Row="2" 
+                            Orientation="Horizontal" 
+                            HorizontalAlignment="Right"
+                            Spacing="20"
+                            Margin="0,40,0,0">
+                    
+                    <Button x:Name="BtnCancel"
+                            Content="ยกเลิก"
+                            Background="#1A237E"
+                            Foreground="White"
+                            FontSize="16"
+                            Padding="40,12"
+                            MinWidth="150"
+                            CornerRadius="4"
+                            Click="BtnCancel_Click"/>
+                    
+                    <Button x:Name="BtnSave"
+                            Content="บันทึก"
+                            Background="#1A237E"
+                            Foreground="White"
+                            FontSize="16"
+                            Padding="40,12"
+                            MinWidth="150"
+                            CornerRadius="4"
+                            Click="BtnSave_Click"/>
+                </StackPanel>
+
+            </Grid>
+        </Border>
+
+    </Grid>
+</Page>

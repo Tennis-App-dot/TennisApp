@@ -1,0 +1,95 @@
+﻿<ContentDialog
+    x:Class="TennisApp.Presentation.Dialogs.ImageCropperDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    FontFamily="{StaticResource ThaiFontFamily}"
+    PrimaryButtonText="ตกลง"
+    SecondaryButtonText="ยกเลิก"
+    PrimaryButtonClick="PrimaryButton_Click"
+    SecondaryButtonClick="SecondaryButton_Click"
+    MinWidth="400"
+    MaxWidth="800">
+    
+    <ContentDialog.TitleTemplate>
+        <DataTemplate>
+            <TextBlock x:Name="CropTitle"
+                       Text="ปรับตำแหน่งรูปภาพ" 
+                       FontSize="20" 
+                       FontWeight="SemiBold"
+                       FontFamily="{StaticResource ThaiFontFamilyBold}"
+                       Foreground="Black"/>
+        </DataTemplate>
+    </ContentDialog.TitleTemplate>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- คำแนะนำ -->
+        <TextBlock Grid.Row="0"
+                   Text="ลากเพื่อเลื่อนรูปภาพภายในกรอบ"
+                   FontSize="14"
+                   Foreground="#666"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,16"/>
+
+        <!-- Cropper Container -->
+        <Grid Grid.Row="1" 
+              x:Name="CropperGrid"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Background="#F0F0F0">
+            
+            <!-- Canvas สำหรับวาดรูปภาพ -->
+            <Canvas x:Name="CropCanvas">
+                
+                <!-- รูปภาพที่สามารถลากได้ -->
+                <Image x:Name="SourceImage"
+                       ManipulationMode="TranslateX,TranslateY"
+                       ManipulationDelta="SourceImage_ManipulationDelta"
+                       RenderTransformOrigin="0.5,0.5">
+                    <Image.RenderTransform>
+                        <TranslateTransform x:Name="ImageTransform"/>
+                    </Image.RenderTransform>
+                </Image>
+            </Canvas>
+
+            <!-- Circle Mode: Overlay with cutout -->
+            <Border x:Name="CircleOverlayContainer"
+                    IsHitTestVisible="False">
+                <Grid>
+                    <Rectangle Fill="#80000000"/>
+                    <Ellipse x:Name="CircleCutout"
+                             Fill="Transparent"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Circle Mode: White border -->
+            <Ellipse x:Name="CircleBorder"
+                     Stroke="White" 
+                     StrokeThickness="3"
+                     Fill="Transparent"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     IsHitTestVisible="False"/>
+            
+            <!-- Rectangle Mode: White border using Canvas for precise positioning -->
+            <Canvas x:Name="RectangleBorderCanvas"
+                    Visibility="Collapsed"
+                    IsHitTestVisible="False">
+                <Rectangle x:Name="RectangleBorder"
+                           Stroke="White"
+                           StrokeThickness="3"
+                           Fill="Transparent"
+                           RadiusX="8"
+                           RadiusY="8"
+                           Canvas.Left="0"
+                           Canvas.Top="0"/>
+            </Canvas>
+        </Grid>
+    </Grid>
+</ContentDialog>

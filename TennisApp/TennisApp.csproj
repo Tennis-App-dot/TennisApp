@@ -1,0 +1,105 @@
+﻿<Project Sdk="Uno.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>net9.0-android</TargetFrameworks>
+        <OutputType>Exe</OutputType>
+        <UnoSingleProject>true</UnoSingleProject>
+
+        <!-- Android Configuration -->
+        <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+        <TargetPlatformVersion Condition="$(TargetFramework.Contains('-android'))">35.0</TargetPlatformVersion>
+        <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+
+        <ApplicationTitle>TennisApp</ApplicationTitle>
+        <ApplicationId>com.companyname.TennisApp</ApplicationId>
+        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationPublisher>Arcro</ApplicationPublisher>
+        <Description>TennisApp powered by Uno Platform.</Description>
+
+        <!-- .NET 9 C# 13.0 Features -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <WarningsAsErrors />
+        <WarningsNotAsErrors>CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</WarningsNotAsErrors>
+
+        <UnoFeatures>
+            Material;
+            Hosting;
+            Toolkit;
+            Logging;
+            Mvvm;
+            Configuration;
+            Localization;
+            Navigation;
+            ThemeService;
+            SkiaRenderer;
+        </UnoFeatures>
+    </PropertyGroup>
+
+    <!-- Packages -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Data.Sqlite" />
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+        <PackageReference Include="Uno.Fonts.Fluent" />
+        <PackageReference Include="SkiaSharp" />
+    </ItemGroup>
+
+    <!-- Pages & Dialogs - Consolidated -->
+    <ItemGroup>
+        <Page Update="Presentation\Pages\CourtPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\TrainerPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\TraineePage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\TraineeFormPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\TraineeEditPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\CoursePage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\CourseFormPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\CourseEditPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\TrainerFormPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\TrainerEditPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\RegisterCoursePage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\BookingPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\UsageLogPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\ReportsPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Dialogs\CourtFormDialog.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Dialogs\ImageCropperDialog.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Dialogs\TraineeDetailCard.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Dialogs\TrainerDetailCard.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Shell.xaml" Generator="MSBuild:Compile" />
+    </ItemGroup>
+
+    <!-- Assets folders -->
+    <ItemGroup>
+        <Folder Include="Assets\Courts\" />
+    </ItemGroup>
+
+    <!-- Thai Fonts -->
+    <ItemGroup>
+        <Content Include="Assets\Fonts\NotoSansThai-Regular.ttf" />
+        <Content Include="Assets\Fonts\NotoSansThai-Bold.ttf" />
+        <Content Include="Assets\Fonts\NotoSansThai-Light.ttf" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <Page Update="Presentation\Dialogs\CourseRegistrationDialog.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    
+    <ItemGroup>
+      <Page Update="Presentation\Pages\TraineeHistoryPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    
+    <ItemGroup>
+      <Page Update="Presentation\Dialogs\ImagePreviewDialog.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    
+    <ItemGroup>
+      <Page Update="Presentation\Dialogs\ImageAdjusterDialog.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+</Project>
