@@ -1,0 +1,374 @@
+﻿<Page
+    x:Class="TennisApp.Presentation.Pages.CourtUsageLogPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:TennisApp.Presentation.Pages"
+    xmlns:viewmodels="using:TennisApp.Presentation.ViewModels"
+    xmlns:models="using:TennisApp.Models"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="#E8E8E8">
+
+    <ScrollViewer VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto">
+        <Grid Padding="0,0,0,40">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- Header -->
+                <RowDefinition Height="Auto"/>  <!-- Form Panel -->
+                <RowDefinition Height="Auto"/>  <!-- Detail Card (เมื่อกดดูรายละเอียด) -->
+                <RowDefinition Height="Auto"/>  <!-- Court Status Table -->
+            </Grid.RowDefinitions>
+
+            <!-- ========== Header ========== -->
+            <TextBlock Grid.Row="0" 
+                       Text="บันทึกการเข้าใช้งาน" 
+                       FontSize="32" 
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       Margin="0,20,0,20"
+                       FontFamily="{StaticResource ThaiFontFamilyBold}"/>
+
+            <!-- ========== Form Panel ========== -->
+            <Border Grid.Row="1" 
+                    Background="White" 
+                    Padding="40,30"
+                    Margin="20,0">
+                <Grid RowSpacing="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Row 1: รหัสการจอง | ชื่อผู้ใช้งาน | เบอร์โทรศัพท์ -->
+                    <Grid Grid.Row="0" ColumnSpacing="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="8">
+                            <TextBlock Text="รหัสการจอง" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <TextBox x:Name="ReserveIdSearchTextBox" PlaceholderText="" Height="40" 
+                                     BorderBrush="#D0D0D0" BorderThickness="1"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Click="BtnSearchReservation_Click"
+                                Background="White" BorderBrush="#D0D0D0" BorderThickness="1"
+                                CornerRadius="4" Width="50" Height="40" Margin="0,32,0,0" VerticalAlignment="Bottom">
+                            <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="Black"/>
+                        </Button>
+
+                        <StackPanel Grid.Column="2" Spacing="8">
+                            <TextBlock Text="ชื่อผู้ใช้งาน" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <TextBox x:Name="CustomerNameTextBox" PlaceholderText="" Height="40" 
+                                     BorderBrush="#D0D0D0" BorderThickness="1"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="3" Spacing="8">
+                            <TextBlock Text="เบอร์โทรศัพท์" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <TextBox x:Name="CustomerPhoneTextBox" PlaceholderText="" Height="40" 
+                                     BorderBrush="#D0D0D0" BorderThickness="1"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Row 2: เวลาเข้าใช้สนาม | ระยะเวลา | ระยะเวลาสิ้นสุด -->
+                    <Grid Grid.Row="1" ColumnSpacing="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="8">
+                            <TextBlock Text="เวลาที่เข้าใช้สนาม" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <ComboBox x:Name="UsageTimeComboBox" HorizontalAlignment="Stretch" Height="40"
+                                      BorderBrush="#D0D0D0" SelectionChanged="UsageTimeComboBox_SelectionChanged"
+                                      PlaceholderText="เลือกเวลา">
+                                <ComboBoxItem Content="เลือกเวลา"/>
+                                <ComboBoxItem Content="08:00" Tag="08:00"/>
+                                <ComboBoxItem Content="09:00" Tag="09:00"/>
+                                <ComboBoxItem Content="10:00" Tag="10:00"/>
+                                <ComboBoxItem Content="11:00" Tag="11:00"/>
+                                <ComboBoxItem Content="12:00" Tag="12:00"/>
+                                <ComboBoxItem Content="13:00" Tag="13:00"/>
+                                <ComboBoxItem Content="14:00" Tag="14:00"/>
+                                <ComboBoxItem Content="15:00" Tag="15:00"/>
+                                <ComboBoxItem Content="16:00" Tag="16:00"/>
+                                <ComboBoxItem Content="17:00" Tag="17:00"/>
+                                <ComboBoxItem Content="18:00" Tag="18:00"/>
+                                <ComboBoxItem Content="19:00" Tag="19:00"/>
+                                <ComboBoxItem Content="20:00" Tag="20:00"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="8">
+                            <TextBlock Text="ระยะเวลาที่ต้องการใช้สนาม" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <ComboBox x:Name="UsageDurationComboBox" HorizontalAlignment="Stretch" Height="40"
+                                      BorderBrush="#D0D0D0" SelectionChanged="UsageDurationComboBox_SelectionChanged"
+                                      PlaceholderText="เลือกเวลา">
+                                <ComboBoxItem Content="เลือกเวลา"/>
+                                <ComboBoxItem Content="1.0 ชั่วโมง" Tag="1.0"/>
+                                <ComboBoxItem Content="1.5 ชั่วโมง" Tag="1.5"/>
+                                <ComboBoxItem Content="2.0 ชั่วโมง" Tag="2.0"/>
+                                <ComboBoxItem Content="2.5 ชั่วโมง" Tag="2.5"/>
+                                <ComboBoxItem Content="3.0 ชั่วโมง" Tag="3.0"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Spacing="8">
+                            <TextBlock Text="ระยะเวลาที่คาดว่าจะสิ้นสุด" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <TextBox x:Name="EstimatedEndTimeTextBox" IsReadOnly="True" Background="#555555"
+                                     Foreground="White" Height="40" BorderBrush="#D0D0D0" BorderThickness="1" 
+                                     PlaceholderText="--:--"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Row 3: จุดประสงค์ | คอร์สเรียน | สนาม -->
+                    <Grid Grid.Row="2" ColumnSpacing="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="8">
+                            <TextBlock Text="จุดประสงค์การใช้งาน" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <ComboBox x:Name="UsageTypeComboBox" HorizontalAlignment="Stretch" Height="40"
+                                      BorderBrush="#D0D0D0" SelectionChanged="UsageTypeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="จองแบบเช่า" Tag="Paid" IsSelected="True"/>
+                                <ComboBoxItem Content="จองสำหรับคอร์ส" Tag="Course"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="8" x:Name="CourseSelectionPanel">
+                            <TextBlock Text="คอร์สเรียน" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <ComboBox x:Name="CourseSelectionComboBox" HorizontalAlignment="Stretch" Height="40"
+                                      BorderBrush="#D0D0D0" PlaceholderText="เลือกคอร์ส">
+                                <ComboBoxItem Content="เลือกคอร์ส"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Spacing="8">
+                            <TextBlock Text="สนามที่เข้าใช้งาน" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <ComboBox x:Name="CourtSelectionComboBox" HorizontalAlignment="Stretch" Height="40"
+                                      BorderBrush="#D0D0D0" PlaceholderText="เลือกสนาม">
+                                <ComboBoxItem Content="เลือกสนาม"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Row 4: ปุ่ม ล้างข้อมูล + เข้าใช้งาน -->
+                    <StackPanel Grid.Row="3" 
+                                Orientation="Horizontal" 
+                                Spacing="16" 
+                                HorizontalAlignment="Center"
+                                Margin="0,10,0,0">
+                        <Button Content="ล้างข้อมูล" Click="BtnClearForm_Click"
+                                Background="#4A148C" Foreground="White" CornerRadius="4"
+                                Padding="40,10" Height="45" FontSize="15" FontWeight="Medium"
+                                FontFamily="{StaticResource ThaiFontFamily}"/>
+                        <Button Content="เข้าใช้งาน" Click="BtnLogUsage_Click"
+                                Background="#4A148C" Foreground="White" CornerRadius="4"
+                                Padding="40,10" Height="45" FontSize="15" FontWeight="Medium"
+                                FontFamily="{StaticResource ThaiFontFamily}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ========== Detail Card (แสดงเมื่อกดดูรายละเอียดสนามที่กำลังใช้งาน) ========== -->
+            <Border Grid.Row="2" 
+                    x:Name="DetailCardBorder"
+                    Background="White" 
+                    Padding="40,30"
+                    Margin="20,20,20,0"
+                    CornerRadius="8"
+                    BorderBrush="#C0C0C0"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <!-- ===== Step 1: Detail Info + Extend + Actions ===== -->
+                    <StackPanel x:Name="DetailStep1Panel" Spacing="16">
+                        <!-- Detail Title -->
+                        <TextBlock x:Name="DetailCardTitle"
+                                   Text="สนามที่ 1" 
+                                   FontSize="22" FontWeight="Bold"
+                                   HorizontalAlignment="Center"
+                                   FontFamily="{StaticResource ThaiFontFamilyBold}"/>
+
+                        <!-- Info Grid -->
+                        <Grid ColumnSpacing="40" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Spacing="6">
+                                <TextBlock x:Name="DetailUserNameText" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"
+                                           Text="ชื่อผู้ใช้งาน: -"/>
+                                <TextBlock x:Name="DetailStartTimeText" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"
+                                           Text="เวลาที่เข้าใช้งานสนาม: -"/>
+                                <TextBlock x:Name="DetailPurposeText" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"
+                                           Text="จุดประสงค์การใช้งาน: -"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Spacing="6">
+                                <TextBlock x:Name="DetailPhoneText" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"
+                                           Text="เบอร์โทรศัพท์: -"/>
+                                <TextBlock x:Name="DetailDurationText" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"
+                                           Text="ระยะเวลาที่ต้องการใช้งาน: -"/>
+                                <TextBlock x:Name="DetailCourseText" FontSize="14" FontFamily="{StaticResource ThaiFontFamily}"
+                                           Text="คอร์สเรียน: -"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Extend Time -->
+                        <Grid ColumnSpacing="16" Margin="0,10,0,0" HorizontalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="ขยายระยะเวลาการใช้งาน" FontSize="14" 
+                                       VerticalAlignment="Center" FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <ComboBox Grid.Column="1" x:Name="ExtendTimeComboBox" Width="150" Height="40" 
+                                      BorderBrush="#D0D0D0">
+                                <ComboBoxItem Content="1.0 ชั่วโมง" Tag="1.0" IsSelected="True"/>
+                                <ComboBoxItem Content="1.5 ชั่วโมง" Tag="1.5"/>
+                                <ComboBoxItem Content="2.0 ชั่วโมง" Tag="2.0"/>
+                                <ComboBoxItem Content="2.5 ชั่วโมง" Tag="2.5"/>
+                                <ComboBoxItem Content="3.0 ชั่วโมง" Tag="3.0"/>
+                            </ComboBox>
+                            <Button Grid.Column="2" Content="ขยายระยะเวลาการใช้งาน" Click="BtnExtendTime_Click"
+                                    Background="#4A148C" Foreground="White" CornerRadius="4"
+                                    Padding="20,8" Height="40" FontSize="14"
+                                    FontFamily="{StaticResource ThaiFontFamily}"/>
+                        </Grid>
+
+                        <!-- Action Buttons (ยกเลิก + สิ้นสุดการใช้งาน → go to step 2) -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16" Margin="0,10,0,0">
+                            <Button Content="ยกเลิก" Click="BtnCancelUsage_Click"
+                                    Background="#4A148C" Foreground="White" CornerRadius="4"
+                                    Padding="40,10" Height="45" FontSize="15" FontWeight="Medium"
+                                    FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <Button Content="สิ้นสุดการใช้งาน" Click="BtnShowEndUsageStep_Click"
+                                    Background="#4A148C" Foreground="White" CornerRadius="4"
+                                    Padding="40,10" Height="45" FontSize="15" FontWeight="Medium"
+                                    FontFamily="{StaticResource ThaiFontFamily}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- ===== Step 2: End Usage (สิ้นสุดการใช้งาน + กรอกค่าบริการ) ===== -->
+                    <StackPanel x:Name="DetailStep2Panel" Spacing="12" Visibility="Collapsed">
+                        <!-- Section Title -->
+                        <TextBlock Text="สิ้นสุดการใช้งาน" FontSize="18" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   FontFamily="{StaticResource ThaiFontFamilyBold}"/>
+
+                        <!-- ระยะเวลาการใช้งาน -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,8,0,0">
+                            <TextBlock Text="ระยะเวลาการใช้งาน" FontSize="16" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <TextBlock x:Name="DetailTotalDurationText" Text="0.00 ชั่วโมง" FontSize="16" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" FontFamily="{StaticResource ThaiFontFamily}"/>
+                        </StackPanel>
+
+                        <!-- ค่าบริการ (Paid เท่านั้น) -->
+                        <StackPanel x:Name="DetailPricePanel" Orientation="Horizontal" 
+                                    HorizontalAlignment="Center" Spacing="10" Margin="0,4,0,4">
+                            <TextBlock Text="ค่าบริการ" FontSize="16" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource ThaiFontFamily}"/>
+                            <TextBox x:Name="DetailPriceTextBox" Width="120" Height="40" 
+                                     InputScope="Number" TextAlignment="Right" BorderBrush="#D0D0D0" BorderThickness="1"/>
+                            <TextBlock Text="บาท" FontSize="16" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource ThaiFontFamily}"/>
+                        </StackPanel>
+
+                        <!-- Confirm Button -->
+                        <Button Content="สิ้นสุดการใช้งาน" Click="BtnEndUsage_Click"
+                                Background="#4A148C" Foreground="White" CornerRadius="4"
+                                Padding="40,10" Height="45" FontSize="15" FontWeight="Medium"
+                                HorizontalAlignment="Center"
+                                FontFamily="{StaticResource ThaiFontFamily}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ========== Court Status Table ========== -->
+            <Border Grid.Row="3" 
+                    Background="#D8D8D8" 
+                    Padding="20"
+                    Margin="20,20,20,0">
+                <Border Background="White" 
+                        CornerRadius="8"
+                        BorderBrush="#C0C0C0"
+                        BorderThickness="1">
+                    <Grid>
+                        <!-- Header -->
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Table Header -->
+                            <Grid Grid.Row="0" Padding="20,15" Background="#F8F8F8"
+                                  BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="ชื่อสนาม" FontWeight="SemiBold" FontSize="15"
+                                           HorizontalAlignment="Center"
+                                           FontFamily="{StaticResource ThaiFontFamily}"/>
+                                <TextBlock Grid.Column="1" Text="สถานะการใช้งาน" FontWeight="SemiBold" FontSize="15"
+                                           HorizontalAlignment="Center"
+                                           FontFamily="{StaticResource ThaiFontFamily}"/>
+                            </Grid>
+
+                            <!-- Table Body -->
+                            <ListView Grid.Row="1" x:Name="CourtStatusListView"
+                                      SelectionMode="None" IsItemClickEnabled="True"
+                                      ItemClick="CourtStatusListView_ItemClick">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Margin" Value="0"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:CourtStatusItem">
+                                        <Grid Padding="20,15" Background="White"
+                                              BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{x:Bind CourtDisplayName}" 
+                                                       FontSize="14" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       FontFamily="{StaticResource ThaiFontFamily}"/>
+
+                                            <TextBlock Grid.Column="1" Text="{x:Bind StatusText, Mode=OneWay}" 
+                                                       FontSize="14" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       FontFamily="{StaticResource ThaiFontFamily}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

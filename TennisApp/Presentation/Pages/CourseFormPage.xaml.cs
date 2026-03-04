@@ -2,21 +2,18 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using TennisApp.Models;
 using TennisApp.Services;
-using TennisApp.Helpers;
 
 namespace TennisApp.Presentation.Pages;
 
 public sealed partial class CourseFormPage : Page
 {
     private readonly DatabaseService _database;
-    private bool _isAutoFilling = false; // Prevent recursive updates
 
     public CourseFormPage()
     {
         InitializeComponent();
         _database = ((App)Application.Current).DatabaseService;
-        
-        // Load trainers for ComboBox
+
         _ = LoadTrainersAsync();
     }
 
@@ -25,7 +22,7 @@ public sealed partial class CourseFormPage : Page
         try
         {
             var trainers = await _database.Trainers.GetAllTrainersAsync();
-            
+
             CmbTrainer.Items.Clear();
             foreach (var trainer in trainers)
             {
@@ -40,90 +37,6 @@ public sealed partial class CourseFormPage : Page
         catch (System.Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"❌ Error loading trainers: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Auto-fill session count based on course ID (course name removed from auto-fill)
-    /// </summary>
-    private void TxtCourseId_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_isAutoFilling) return;
-
-        string courseIdInput = TxtCourseId.Text.Trim().ToUpper();
-
-        // Get references to XAML controls
-        var txtCourseIdHint = this.FindName("TxtCourseIdHint") as TextBlock;
-        var txtSessionsAutoIndicator = this.FindName("TxtSessionsAutoIndicator") as TextBlock;
-
-        // Parse course ID
-        var (isValid, courseType, courseName, sessionCount, errorMessage) = CourseIdParser.ParseCourseId(courseIdInput);
-
-        if (isValid)
-        {
-            // Valid course ID - auto-fill session count only (NOT course name)
-            _isAutoFilling = true;
-
-            // Only auto-fill session count, let user type course name manually
-            TxtSessions.Text = sessionCount.ToString();
-
-            // Show success indicator
-            if (txtCourseIdHint != null)
-            {
-                txtCourseIdHint.Text = $"{CourseIdParser.GetCourseTypeDescription(courseType)} - {sessionCount} ครั้ง";
-                txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Microsoft.UI.Colors.Green);
-            }
-
-            if (txtSessionsAutoIndicator != null)
-            {
-                txtSessionsAutoIndicator.Visibility = Visibility.Visible;
-            }
-
-            _isAutoFilling = false;
-
-            System.Diagnostics.Debug.WriteLine($"✅ Auto-filled session count: {sessionCount} (course name: manual entry)");
-        }
-        else if (!string.IsNullOrEmpty(courseIdInput))
-        {
-            // Invalid course ID - show error
-            if (txtCourseIdHint != null)
-            {
-                if (courseIdInput.Length == 4)
-                {
-                    // Only show detailed error when user has typed 4 characters
-                    txtCourseIdHint.Text = errorMessage;
-                    txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Microsoft.UI.Colors.Red);
-                }
-                else
-                {
-                    // Still typing - show format hint
-                    txtCourseIdHint.Text = "รูปแบบ: XX## (ประเภท 2 ตัว + ครั้ง 01-99)";
-                    txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Microsoft.UI.Colors.Gray);
-                }
-            }
-
-            if (txtSessionsAutoIndicator != null)
-            {
-                txtSessionsAutoIndicator.Visibility = Visibility.Collapsed;
-            }
-        }
-        else
-        {
-            // Empty input - reset to default hint
-            if (txtCourseIdHint != null)
-            {
-                txtCourseIdHint.Text = "รูปแบบ: XX## (ประเภท 2 ตัว + ครั้ง 01-99)";
-                txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Microsoft.UI.Colors.Gray);
-            }
-
-            if (txtSessionsAutoIndicator != null)
-            {
-                txtSessionsAutoIndicator.Visibility = Visibility.Collapsed;
-            }
         }
     }
 
@@ -144,61 +57,52 @@ public sealed partial class CourseFormPage : Page
             return;
         }
 
-        // Use CourseIdParser for validation
-        var (isValid, _, _, _, errorMessage) = CourseIdParser.ParseCourseId(TxtCourseId.Text);
-        
-        if (!isValid)
-        {
-            await ShowErrorDialog($"รหัสคอร์สไม่ถูกต้อง\n{errorMessage}");
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(TxtCourseName.Text))
         {
             await ShowErrorDialog("กรุณากรอกชื่อคอร์ส");
             return;
         }
 
-        // Validate session count
-        if (string.IsNullOrWhiteSpace(TxtSessions.Text) || !int.TryParse(TxtSessions.Text, out var sessions))
+        if (CmbTrainer.SelectedItem == null)
         {
-            await ShowErrorDialog("กรุณากรอกจำนวนครั้งที่ถูกต้อง");
-            return;
-        }
-
-        if (!CourseIdParser.IsValidSessionCount(sessions))
-        {
-            await ShowErrorDialog("จำนวนครั้งต้องอยู่ระหว่าง 1-99");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(TxtCourseFee.Text) || !int.TryParse(TxtCourseFee.Text, out var fee))
-        {
-            await ShowErrorDialog("กรุณากรอกค่าสมัครคอร์สที่ถูกต้อง");
+            await ShowErrorDialog("กรุณาเลือกผู้รับผิดชอบคอร์ส");
             return;
         }
 
         // Check if course already exists
-        if (await _database.Courses.CourseExistsAsync(TxtCourseId.Text.ToUpper()))
+        var courseId = TxtCourseId.Text.Trim().ToUpper();
+        if (await _database.Courses.CourseExistsAsync(courseId))
         {
-            await ShowErrorDialog($"รหัสคอร์ส {TxtCourseId.Text.ToUpper()} มีอยู่แล้ว");
+            await ShowErrorDialog($"รหัสคอร์ส {courseId} มีอยู่แล้ว");
             return;
         }
 
-        // Get selected values
-        var duration = 1; // Fixed at 1 hour per session
-        var trainerId = CmbTrainer.SelectedItem is ComboBoxItem selectedTrainer 
-            ? selectedTrainer.Tag?.ToString() 
+        // Parse tier pricing (0 if empty or invalid)
+        int.TryParse(TxtRatePerTime.Text, out var ratePerTime);
+        int.TryParse(TxtRate4.Text, out var rate4);
+        int.TryParse(TxtRate8.Text, out var rate8);
+        int.TryParse(TxtRate12.Text, out var rate12);
+        int.TryParse(TxtRate16.Text, out var rate16);
+        int.TryParse(TxtRateMonthly.Text, out var rateMonthly);
+
+        var trainerId = CmbTrainer.SelectedItem is ComboBoxItem selectedTrainer
+            ? selectedTrainer.Tag?.ToString()
             : null;
 
         // Create course object
         var course = new CourseItem
         {
-            ClassId = TxtCourseId.Text.ToUpper(),
+            ClassId = courseId,
             ClassTitle = TxtCourseName.Text,
-            ClassTime = sessions,
-            ClassDuration = duration,
-            ClassRate = fee,
+            ClassTime = 0,
+            ClassDuration = 1,
+            ClassRate = ratePerTime,
+            ClassRatePerTime = ratePerTime,
+            ClassRate4 = rate4,
+            ClassRate8 = rate8,
+            ClassRate12 = rate12,
+            ClassRate16 = rate16,
+            ClassRateMonthly = rateMonthly,
             TrainerId = trainerId ?? string.Empty
         };
 

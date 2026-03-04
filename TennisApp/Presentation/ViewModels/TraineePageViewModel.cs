@@ -53,12 +53,10 @@ public partial class TraineePageViewModel : ObservableObject
         {
             _databaseService = new DatabaseService();
             System.Diagnostics.Debug.WriteLine("DatabaseService created successfully");
-            System.Diagnostics.Debug.WriteLine("TraineePageViewModel ready - database connected");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"❌ TraineePageViewModel constructor error: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"📍 Stack: {ex.StackTrace}");
         }
     }
 
@@ -67,6 +65,7 @@ public partial class TraineePageViewModel : ObservableObject
     {
         try
         {
+            _databaseService.EnsureInitialized();
             IsLoading = true;
             HasNoResults = false;
             _currentPage = 1;

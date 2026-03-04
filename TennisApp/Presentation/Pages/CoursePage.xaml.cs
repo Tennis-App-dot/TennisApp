@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -24,9 +25,19 @@ public sealed partial class CoursePage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        
+
         System.Diagnostics.Debug.WriteLine("CoursePage: OnNavigatedTo - Loading courses...");
         await ViewModel.LoadCoursesAsync();
+
+        // Populate trainer filter ComboBox (skip "ทั้งหมด" — use PlaceholderText instead)
+        TrainerFilterComboBox.Items.Clear();
+        foreach (var name in ViewModel.TrainerNames)
+        {
+            if (name != "ทั้งหมด")
+            {
+                TrainerFilterComboBox.Items.Add(name);
+            }
+        }
     }
 
     private void AddButton_Click(object sender, RoutedEventArgs e)
@@ -59,26 +70,35 @@ public sealed partial class CoursePage : Page
 
     private async void BtnSearch_Click(object sender, RoutedEventArgs e)
     {
-        ViewModel.SearchKeyword = SearchTextBox.Text;
-        await ViewModel.SearchCoursesAsync();
+        await PerformMultiFieldSearch();
     }
 
-    private async void SearchTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    private async void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            ViewModel.SearchKeyword = SearchTextBox.Text;
-            await ViewModel.SearchCoursesAsync();
+            await PerformMultiFieldSearch();
             e.Handled = true;
         }
     }
 
-    private void FilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void TrainerFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (FilterComboBox.SelectedItem is ComboBoxItem item)
+        if (TrainerFilterComboBox.SelectedItem is string selected)
         {
-            ViewModel.SelectedFilterField = item.Content?.ToString() ?? "ทั้งหมด";
+            ViewModel.SelectedTrainerFilter = selected;
         }
+        else
+        {
+            ViewModel.SelectedTrainerFilter = "ทั้งหมด";
+        }
+    }
+
+    private async System.Threading.Tasks.Task PerformMultiFieldSearch()
+    {
+        ViewModel.SearchClassId = SearchClassIdBox.Text;
+        ViewModel.SearchClassTitle = SearchClassTitleBox.Text;
+        await ViewModel.SearchMultiFieldAsync();
     }
 
     private async System.Threading.Tasks.Task ShowDeleteConfirmationAndDelete(string classId)

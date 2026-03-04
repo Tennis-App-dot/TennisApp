@@ -23,6 +23,7 @@ public sealed partial class TraineeEditPage : Page
     {
         InitializeComponent();
         _databaseService = new DatabaseService();
+        _databaseService.EnsureInitialized();
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)

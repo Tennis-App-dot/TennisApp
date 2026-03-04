@@ -17,153 +17,151 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <TextBlock Grid.Row="0" 
-                   Text="ข้อมูลคอร์ส" 
-                   FontSize="32" 
-                   FontWeight="Bold"
-                   Margin="0,0,0,24"
-                   VerticalAlignment="Center"/>
-
-        <!-- Search Bar with Add Button -->
-        <Grid Grid.Row="1" 
-              Margin="0,0,0,20">
+        <!-- ── Header ─────────────────────────────────────────── -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" MinWidth="150"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-
-            <!-- Filter Dropdown -->
-            <ComboBox x:Name="FilterComboBox"
-                      Grid.Column="0"
-                      PlaceholderText="ค้นหาจาก"
-                      Background="White"
-                      Height="45"
-                      MinWidth="150"
-                      Margin="0,0,20,0"
-                      VerticalAlignment="Center"
-                      SelectedIndex="0"
-                      SelectionChanged="FilterComboBox_SelectionChanged">
-                <ComboBoxItem Content="ทั้งหมด"/>
-                <ComboBoxItem Content="รหัสคอร์ส"/>
-                <ComboBoxItem Content="ชื่อคอร์ส"/>
-                <ComboBoxItem Content="ผู้ฝึกสอน"/>
-            </ComboBox>
-
-            <!-- Search TextBox with Button -->
-            <Grid Grid.Column="1" Margin="0,0,20,0" ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <TextBox x:Name="SearchTextBox"
-                         Grid.Column="0"
-                         PlaceholderText="ค้นหา"
-                         Background="White"
-                         Height="45"
-                         VerticalContentAlignment="Center"
-                         FontSize="16"
-                         BorderThickness="1"
-                         BorderBrush="#E0E0E0"
-                         CornerRadius="4"
-                         KeyDown="SearchTextBox_KeyDown"/>
-
-                <Button Grid.Column="1"
-                        Background="White"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="1"
-                        Height="45"
-                        Width="50"
-                        CornerRadius="4"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Click="BtnSearch_Click">
-                    <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="#666666"/>
-                </Button>
-            </Grid>
-
-            <!-- Add Button -->
-            <Button x:Name="AddButton"
-                    Grid.Column="2"
-                    Content="เพิ่มคอร์สเรียน"
-                    Background="#4A148C"
-                    Foreground="White"
-                    FontSize="16"
-                    Height="45"
-                    Padding="24,10"
-                    CornerRadius="4"
+            <TextBlock Text="จัดการคอร์สเรียน"
+                       FontSize="32" FontWeight="Bold"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    x:Name="AddButton"
+                    Content="+ เพิ่มคอร์สใหม่"
+                    Background="#4A148C" Foreground="White"
+                    FontSize="16" Height="45"
+                    Padding="24,0" CornerRadius="4"
                     Click="AddButton_Click"/>
         </Grid>
 
-        <!-- Data Table -->
-        <Border Grid.Row="2" 
-                Background="White" 
-                CornerRadius="8"
-                BorderBrush="#E0E0E0"
-                BorderThickness="1">
-            
-            <Grid>
+        <!-- ── Search Bar ─────────────────────────────────────── -->
+        <Grid Grid.Row="1" Margin="0,0,0,16" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto" MinWidth="180"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- รหัสคอร์ส -->
+            <TextBox x:Name="SearchClassIdBox"
+                     Grid.Column="0"
+                     PlaceholderText="รหัสคอร์ส..."
+                     Background="White" Height="45"
+                     VerticalContentAlignment="Center"
+                     FontSize="15" CornerRadius="4"
+                     BorderBrush="#E0E0E0" BorderThickness="1"
+                     KeyDown="SearchBox_KeyDown"/>
+
+            <!-- ชื่อคอร์ส -->
+            <TextBox x:Name="SearchClassTitleBox"
+                     Grid.Column="1"
+                     PlaceholderText="ชื่อคอร์ส..."
+                     Background="White" Height="45"
+                     VerticalContentAlignment="Center"
+                     FontSize="15" CornerRadius="4"
+                     BorderBrush="#E0E0E0" BorderThickness="1"
+                     KeyDown="SearchBox_KeyDown"/>
+
+            <!-- ผู้รับผิดชอบ (ComboBox) -->
+            <ComboBox x:Name="TrainerFilterComboBox"
+                      Grid.Column="2"
+                      PlaceholderText="ผู้รับผิดชอบ (ทั้งหมด)"
+                      Background="White" Height="45"
+                      MinWidth="180"
+                      HorizontalAlignment="Stretch"
+                      SelectionChanged="TrainerFilterComboBox_SelectionChanged"/>
+
+            <!-- ปุ่มค้นหา -->
+            <Button Grid.Column="3"
+                    Background="White" BorderBrush="#E0E0E0"
+                    BorderThickness="1" Height="45" Width="50"
+                    CornerRadius="4" Click="BtnSearch_Click">
+                <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="#666"/>
+            </Button>
+        </Grid>
+
+        <!-- ── Table ──────────────────────────────────────────── -->
+        <Border Grid.Row="2"
+                Background="White" CornerRadius="8"
+                BorderBrush="#E0E0E0" BorderThickness="1">
+            <ScrollViewer HorizontalScrollMode="Auto"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollMode="Disabled">
+            <Grid MinWidth="1100">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- Table Header -->
-                <Grid Grid.Row="0" 
-                      Background="#00E676" 
-                      MinHeight="50"
-                      Padding="16,0">
+                <Grid Grid.Row="0" Background="#00E676"
+                      MinHeight="48" Padding="16,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1*"/>
-                        <ColumnDefinition Width="1.5*"/>
-                        <ColumnDefinition Width="1*"/>
-                        <ColumnDefinition Width="1.5*"/>
-                        <ColumnDefinition Width="2*"/>
-                        <ColumnDefinition Width="0.8*" MinWidth="60"/>
-                        <ColumnDefinition Width="0.8*" MinWidth="60"/>
+                        <ColumnDefinition Width="100"/>   <!-- รหัส -->
+                        <ColumnDefinition Width="180"/>   <!-- ชื่อคอร์ส -->
+                        <ColumnDefinition Width="160"/>   <!-- ผู้รับผิดชอบ -->
+                        <ColumnDefinition Width="90"/>    <!-- ครั้งละ -->
+                        <ColumnDefinition Width="90"/>    <!-- 4 ครั้ง -->
+                        <ColumnDefinition Width="90"/>    <!-- 8 ครั้ง -->
+                        <ColumnDefinition Width="90"/>    <!-- 12 ครั้ง -->
+                        <ColumnDefinition Width="90"/>    <!-- 16 ครั้ง -->
+                        <ColumnDefinition Width="100"/>   <!-- รายเดือน -->
+                        <ColumnDefinition Width="80"/>    <!-- วันที่ -->
+                        <ColumnDefinition Width="80"/>    <!-- จัดการ -->
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" 
-                               Text="รหัสคอร์ส" 
-                               FontWeight="SemiBold"
+                    <TextBlock Grid.Column="0" Text="รหัสคอร์ส"
+                               FontWeight="SemiBold" FontSize="14"
                                VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="1" 
-                               Text="ชื่อคอร์ส" 
-                               FontWeight="SemiBold"
+                    <TextBlock Grid.Column="1" Text="ชื่อคอร์ส"
+                               FontWeight="SemiBold" FontSize="14"
                                VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="2" 
-                               Text="จำนวนครั้ง" 
-                               FontWeight="SemiBold"
+                    <TextBlock Grid.Column="2" Text="ผู้รับผิดชอบ"
+                               FontWeight="SemiBold" FontSize="14"
                                VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="3" 
-                               Text="ค่าสมัครคอร์ส" 
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="4" 
-                               Text="ผู้ฝึกสอน" 
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="5" 
-                               Text="แก้ไข" 
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="6" 
-                               Text="ลบ" 
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="3" Text="ครั้งละ"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="4" Text="4 ครั้ง"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="5" Text="8 ครั้ง"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="6" Text="12 ครั้ง"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="7" Text="16 ครั้ง"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="8" Text="รายเดือน"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right" Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="9" Text="วันที่"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Grid.Column="10" Text="จัดการ"
+                               FontWeight="SemiBold" FontSize="14"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
                 </Grid>
 
-                <!-- Table Body with ListView for data binding -->
+                <!-- Loading -->
+                <ProgressRing Grid.Row="1"
+                              IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                              Width="48" Height="48"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <!-- Data rows -->
                 <ListView Grid.Row="1"
                           x:Name="CoursesListView"
                           ItemsSource="{x:Bind ViewModel.FilteredCourses, Mode=OneWay}"
@@ -177,66 +175,121 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:CourseItem">
-                            <Grid MinHeight="50" 
-                                  Padding="16,8" 
+                            <Grid MinHeight="48" Padding="16,6"
                                   Background="White"
-                                  BorderBrush="#E0E0E0"
+                                  BorderBrush="#F0F0F0"
                                   BorderThickness="0,0,0,1">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1*"/>
-                                    <ColumnDefinition Width="1.5*"/>
-                                    <ColumnDefinition Width="1*"/>
-                                    <ColumnDefinition Width="1.5*"/>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="0.8*" MinWidth="60"/>
-                                    <ColumnDefinition Width="0.8*" MinWidth="60"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="160"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="80"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" 
-                                           Text="{x:Bind ClassId}" 
+                                <TextBlock Grid.Column="0"
+                                           Text="{x:Bind ClassId}"
+                                           FontSize="14" FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" 
-                                           Text="{x:Bind ClassTitle}" 
-                                           VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" 
-                                           Text="{x:Bind ClassTime}" 
-                                           VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" 
-                                           Text="{x:Bind ClassRate}" 
-                                           VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" 
-                                           Text="{x:Bind TrainerName}" 
-                                           VerticalAlignment="Center"/>
-                                
-                                <Button Grid.Column="5" 
-                                        Background="Transparent"
-                                        HorizontalAlignment="Center"
-                                        Click="BtnEdit_Click"
-                                        Tag="{x:Bind ClassId}"
-                                        Tapped="Button_Tapped">
-                                    <FontIcon Glyph="&#xE70F;" Foreground="#FFA726" FontSize="18"/>
-                                </Button>
-                                
-                                <Button Grid.Column="6" 
-                                        Background="Transparent"
-                                        HorizontalAlignment="Center"
-                                        Click="BtnDelete_Click"
-                                        Tag="{x:Bind ClassId}"
-                                        Tapped="Button_Tapped">
-                                    <FontIcon Glyph="&#xE74D;" Foreground="#EF5350" FontSize="18"/>
-                                </Button>
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{x:Bind ClassTitle}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{x:Bind TrainerDisplayName}"
+                                           FontSize="13" Foreground="#616161"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+
+                                <TextBlock Grid.Column="3"
+                                           Text="{x:Bind ClassRatePerTimeText}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,12,0"/>
+
+                                <TextBlock Grid.Column="4"
+                                           Text="{x:Bind ClassRate4Text}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,12,0"/>
+
+                                <TextBlock Grid.Column="5"
+                                           Text="{x:Bind ClassRate8Text}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,12,0"/>
+
+                                <TextBlock Grid.Column="6"
+                                           Text="{x:Bind ClassRate12Text}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,12,0"/>
+
+                                <TextBlock Grid.Column="7"
+                                           Text="{x:Bind ClassRate16Text}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,12,0"/>
+
+                                <TextBlock Grid.Column="8"
+                                           Text="{x:Bind ClassRateMonthlyText}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,12,0"/>
+
+                                <TextBlock Grid.Column="9"
+                                           Text="{x:Bind LastUpdatedText}"
+                                           FontSize="12" Foreground="#9E9E9E"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"/>
+
+                                <StackPanel Grid.Column="10"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="4">
+                                    <Button Background="Transparent"
+                                            BorderThickness="0"
+                                            Width="34" Height="34"
+                                            Padding="0"
+                                            Click="BtnEdit_Click"
+                                            Tag="{x:Bind ClassId}"
+                                            Tapped="Button_Tapped">
+                                        <FontIcon Glyph="&#xE70F;"
+                                                  Foreground="#FFA726" FontSize="15"/>
+                                    </Button>
+                                    <Button Background="Transparent"
+                                            BorderThickness="0"
+                                            Width="34" Height="34"
+                                            Padding="0"
+                                            Click="BtnDelete_Click"
+                                            Tag="{x:Bind ClassId}"
+                                            Tapped="Button_Tapped">
+                                        <FontIcon Glyph="&#xE74D;"
+                                                  Foreground="#EF5350" FontSize="15"/>
+                                    </Button>
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
             </Grid>
+            </ScrollViewer>
         </Border>
 
-        <!-- Footer Note -->
+        <!-- ── Footer ─────────────────────────────────────────── -->
         <TextBlock Grid.Row="3"
                    Text="หมายเหตุ ระยะเวลาเรียนคอร์สละ 1 ชั่วโมง"
-                   FontSize="14"
-                   Foreground="#666"
+                   FontSize="14" Foreground="#666"
                    Margin="0,16,0,0"
                    HorizontalAlignment="Left"/>
     </Grid>

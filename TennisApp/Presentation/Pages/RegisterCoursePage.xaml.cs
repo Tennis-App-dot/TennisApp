@@ -1,111 +1,195 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Collections.ObjectModel;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
-using TennisApp.Presentation.ViewModels;
-using TennisApp.Presentation.Dialogs;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-
-// The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=234238
+using TennisApp.Models;
+using TennisApp.Services;
 
 namespace TennisApp.Presentation.Pages;
-/// <summary>
-/// An empty page that can be used on its own or navigated to within a Frame.
-/// </summary>
+
 public sealed partial class RegisterCoursePage : Page
 {
-    public RegisterCoursePageViewModel ViewModel { get; }
+    private readonly DatabaseService _database;
+    private List<ClassRegisRecordItem> _allRegistrations = new();
+    private readonly ObservableCollection<ClassRegisRecordItem> _filteredRegistrations = new();
 
     public RegisterCoursePage()
     {
         InitializeComponent();
-        ViewModel = new RegisterCoursePageViewModel();
+        _database = ((App)Application.Current).DatabaseService;
+        RegisListView.ItemsSource = _filteredRegistrations;
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        
-        System.Diagnostics.Debug.WriteLine("RegisterCoursePage: OnNavigatedTo - Loading trainees...");
-        await ViewModel.LoadTraineesAsync();
+        await LoadRegistrationsAsync();
     }
 
-    private async void BtnSearch_Click(object sender, RoutedEventArgs e)
+    // ── Navigate to registration form ─────────────────────────
+    private void BtnNewRegister_Click(object sender, RoutedEventArgs e)
     {
-        await ViewModel.SearchTraineesAsync();
+        Frame.Navigate(typeof(CourseRegistrationFormPage));
     }
 
-    private async void SearchTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    // ── Load data ─────────────────────────────────────────────
+    private async System.Threading.Tasks.Task LoadRegistrationsAsync()
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        try
         {
-            await ViewModel.SearchTraineesAsync();
-            e.Handled = true;
+            LoadingRing.IsActive = true;
+            EmptyPanel.Visibility = Visibility.Collapsed;
+            RegisListView.Visibility = Visibility.Collapsed;
+
+            _allRegistrations = await _database.Registrations.GetAllRegistrationsAsync();
+
+            // Assign row numbers
+            for (int i = 0; i < _allRegistrations.Count; i++)
+            {
+                _allRegistrations[i].RowNumber = i + 1;
+            }
+
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Error loading registrations: {ex.Message}");
+        }
+        finally
+        {
+            LoadingRing.IsActive = false;
         }
     }
 
-    private async void BtnRegister_Click(object sender, RoutedEventArgs e)
+    // ── Filter ────────────────────────────────────────────────
+    private void ApplyFilter()
     {
-        if (sender is Button button && button.Tag is string traineeId)
-        {
-            System.Diagnostics.Debug.WriteLine($"RegisterCoursePage: Opening registration dialog for trainee: {traineeId}");
-            
-            // Get trainee from the list
-            var trainee = ViewModel.Trainees.FirstOrDefault(t => t.TraineeId == traineeId);
-            if (trainee == null)
-            {
-                await ShowErrorDialog("ไม่พบข้อมูลผู้เรียน");
-                return;
-            }
+        var keyword = TxtSearch.Text?.Trim() ?? string.Empty;
 
-            // Show registration dialog
-            var dialog = new CourseRegistrationDialog(trainee, ViewModel);
-            dialog.XamlRoot = this.XamlRoot;
-            
-            var result = await dialog.ShowAsync();
-            
-            if (result == ContentDialogResult.Primary)
+        var filtered = string.IsNullOrEmpty(keyword)
+            ? _allRegistrations
+            : _allRegistrations.Where(r =>
+                r.TraineeId.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                r.TraineeName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                r.ClassId.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                r.ClassName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                r.TrainerName.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+
+        // Re-number filtered results
+        for (int i = 0; i < filtered.Count; i++)
+        {
+            filtered[i].RowNumber = i + 1;
+        }
+
+        _filteredRegistrations.Clear();
+        foreach (var item in filtered)
+        {
+            _filteredRegistrations.Add(item);
+        }
+
+        if (_filteredRegistrations.Count == 0)
+        {
+            EmptyPanel.Visibility = Visibility.Visible;
+            RegisListView.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            EmptyPanel.Visibility = Visibility.Collapsed;
+            RegisListView.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyFilter();
+    }
+
+    private void BtnSearch_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyFilter();
+    }
+
+    // ── Delete ─────────────────────────────────────────────────
+    private async void BtnDeleteRegis_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is ClassRegisRecordItem record)
+        {
+            bool confirmed = await ShowConfirmDialog(
+                "ลบรายการสมัคร",
+                $"ต้องการลบรายการสมัครของ {record.TraineeName}\nคอร์ส {record.ClassId} - {record.ClassName} หรือไม่?"
+            );
+            if (!confirmed) return;
+
+            try
             {
-                System.Diagnostics.Debug.WriteLine("✅ Course registration completed successfully");
+                var success = await _database.Registrations.DeleteRegistrationAsync(record.TraineeId, record.ClassId);
+                if (success)
+                {
+                    await LoadRegistrationsAsync();
+                    await ShowMessageDialog("สำเร็จ", "ลบรายการสมัครเรียบร้อยแล้ว");
+                }
+                else
+                {
+                    await ShowMessageDialog("ข้อผิดพลาด", "ไม่สามารถลบรายการได้");
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowMessageDialog("ข้อผิดพลาด", $"เกิดข้อผิดพลาด: {ex.Message}");
             }
         }
     }
 
-    private async System.Threading.Tasks.Task ShowErrorDialog(string message)
+    // ── Dialogs ───────────────────────────────────────────────
+    private async System.Threading.Tasks.Task ShowMessageDialog(string title, string message)
     {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
         var dialog = new ContentDialog
         {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
+            Title = new TextBlock
+            {
+                Text = title,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
+                FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            },
+            Content = new TextBlock
+            {
+                Text = message,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
+                TextWrapping = TextWrapping.Wrap
+            },
             CloseButtonText = "ตกลง",
             XamlRoot = this.XamlRoot,
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
         };
-
         await dialog.ShowAsync();
+    }
+
+    private async System.Threading.Tasks.Task<bool> ShowConfirmDialog(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = new TextBlock
+            {
+                Text = title,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
+                FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            },
+            Content = new TextBlock
+            {
+                Text = message,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "ใช่",
+            CloseButtonText = "ไม่",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 }

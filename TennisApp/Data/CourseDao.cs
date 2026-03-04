@@ -24,14 +24,21 @@ public class CourseDao
         var command = connection.CreateCommand();
         command.CommandText = @"
             CREATE TABLE IF NOT EXISTS Course (
-                class_id           TEXT(4) PRIMARY KEY NOT NULL,
-                class_title        TEXT(50) NOT NULL,
-                class_time         INTEGER NOT NULL,
-                class_duration     INTEGER NULL,
-                class_rate         INTEGER NULL,
-                trainer_id         TEXT(9) NULL,
-                created_date       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                last_updated       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                class_id              TEXT(4) PRIMARY KEY NOT NULL,
+                class_title           TEXT(50) NOT NULL,
+                class_time            INTEGER NOT NULL,
+                class_duration        INTEGER NULL,
+                class_rate            INTEGER NULL,
+                class_rate_per_time   INTEGER NULL,
+                class_rate_4          INTEGER NULL,
+                class_rate_8          INTEGER NULL,
+                class_rate_12         INTEGER NULL,
+                class_rate_16         INTEGER NULL,
+                class_rate_monthly    INTEGER NULL,
+                class_rate_night      INTEGER NULL,
+                trainer_id            TEXT(9) NULL,
+                created_date          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_updated          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (trainer_id) REFERENCES Trainer(trainer_id) ON DELETE SET NULL
             );
 
@@ -40,7 +47,72 @@ public class CourseDao
         ";
 
         command.ExecuteNonQuery();
+
+        // Migrate: add tier pricing columns if missing (for existing databases)
+        var migrationColumns = new[]
+        {
+            ("class_rate_per_time", "INTEGER NULL"),
+            ("class_rate_4", "INTEGER NULL"),
+            ("class_rate_8", "INTEGER NULL"),
+            ("class_rate_12", "INTEGER NULL"),
+            ("class_rate_16", "INTEGER NULL"),
+            ("class_rate_monthly", "INTEGER NULL"),
+            ("class_rate_night", "INTEGER NULL")
+        };
+
+        foreach (var (colName, colType) in migrationColumns)
+        {
+            try
+            {
+                var alterCmd = connection.CreateCommand();
+                alterCmd.CommandText = $"ALTER TABLE Course ADD COLUMN {colName} {colType}";
+                alterCmd.ExecuteNonQuery();
+            }
+            catch (SqliteException)
+            {
+                // Column already exists — ignore
+            }
+        }
+
         System.Diagnostics.Debug.WriteLine("✅ Course table initialized");
+    }
+
+    // ─── Shared SQL fragment ──────────────────────────────────
+    private const string SelectColumns = @"
+        c.class_id, c.class_title, c.class_time, c.class_duration, 
+        c.class_rate, c.trainer_id,
+        t.trainer_fname || ' ' || t.trainer_lname AS trainer_name,
+        c.class_rate_per_time, c.class_rate_4, c.class_rate_8,
+        c.class_rate_12, c.class_rate_16, c.class_rate_monthly,
+        c.class_rate_night, c.last_updated
+    ";
+
+    private static CourseItem ReadCourseFromReader(SqliteDataReader reader)
+    {
+        DateTime? lastUpdated = null;
+        if (!reader.IsDBNull(14))
+        {
+            try { lastUpdated = DateTime.Parse(reader.GetString(14)); }
+            catch { /* ignore parse errors */ }
+        }
+
+        return CourseItem.FromDatabase(
+            classId: reader.GetString(0),
+            classTitle: reader.GetString(1),
+            classTime: reader.GetInt32(2),
+            classDuration: reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
+            classRate: reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+            trainerId: reader.IsDBNull(5) ? null : reader.GetString(5),
+            trainerName: reader.IsDBNull(6) ? "" : reader.GetString(6),
+            classRatePerTime: reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
+            classRate4: reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+            classRate8: reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
+            classRate12: reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+            classRate16: reader.IsDBNull(11) ? 0 : reader.GetInt32(11),
+            classRateMonthly: reader.IsDBNull(12) ? 0 : reader.GetInt32(12),
+            classRateNight: reader.IsDBNull(13) ? 0 : reader.GetInt32(13),
+            lastUpdated: lastUpdated
+        );
     }
 
     /// <summary>
@@ -54,10 +126,8 @@ public class CourseDao
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT c.class_id, c.class_title, c.class_time, c.class_duration, 
-                   c.class_rate, c.trainer_id,
-                   t.trainer_fname || ' ' || t.trainer_lname AS trainer_name
+        command.CommandText = $@"
+            SELECT {SelectColumns}
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
             ORDER BY c.class_id
@@ -66,16 +136,7 @@ public class CourseDao
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var course = CourseItem.FromDatabase(
-                classId: reader.GetString(0),
-                classTitle: reader.GetString(1),
-                classTime: reader.GetInt32(2),
-                classDuration: reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
-                classRate: reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                trainerId: reader.IsDBNull(5) ? null : reader.GetString(5),
-                trainerName: reader.IsDBNull(6) ? "" : reader.GetString(6)
-            );
-            courses.Add(course);
+            courses.Add(ReadCourseFromReader(reader));
         }
 
         System.Diagnostics.Debug.WriteLine($"📚 Loaded {courses.Count} courses from database");
@@ -91,10 +152,8 @@ public class CourseDao
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT c.class_id, c.class_title, c.class_time, c.class_duration, 
-                   c.class_rate, c.trainer_id,
-                   t.trainer_fname || ' ' || t.trainer_lname AS trainer_name
+        command.CommandText = $@"
+            SELECT {SelectColumns}
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
             WHERE c.class_id = @class_id
@@ -104,15 +163,7 @@ public class CourseDao
         using var reader = await command.ExecuteReaderAsync();
         if (await reader.ReadAsync())
         {
-            return CourseItem.FromDatabase(
-                classId: reader.GetString(0),
-                classTitle: reader.GetString(1),
-                classTime: reader.GetInt32(2),
-                classDuration: reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
-                classRate: reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                trainerId: reader.IsDBNull(5) ? null : reader.GetString(5),
-                trainerName: reader.IsDBNull(6) ? "" : reader.GetString(6)
-            );
+            return ReadCourseFromReader(reader);
         }
 
         return null;
@@ -128,8 +179,12 @@ public class CourseDao
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-            INSERT INTO Course (class_id, class_title, class_time, class_duration, class_rate, trainer_id)
-            VALUES (@class_id, @class_title, @class_time, @class_duration, @class_rate, @trainer_id)
+            INSERT INTO Course (class_id, class_title, class_time, class_duration, class_rate, 
+                                class_rate_per_time, class_rate_4, class_rate_8, class_rate_12, 
+                                class_rate_16, class_rate_monthly, class_rate_night, trainer_id)
+            VALUES (@class_id, @class_title, @class_time, @class_duration, @class_rate,
+                    @class_rate_per_time, @class_rate_4, @class_rate_8, @class_rate_12,
+                    @class_rate_16, @class_rate_monthly, @class_rate_night, @trainer_id)
         ";
 
         command.Parameters.AddWithValue("@class_id", course.ClassId);
@@ -137,6 +192,13 @@ public class CourseDao
         command.Parameters.AddWithValue("@class_time", course.ClassTime);
         command.Parameters.AddWithValue("@class_duration", course.ClassDuration);
         command.Parameters.AddWithValue("@class_rate", course.ClassRate);
+        command.Parameters.AddWithValue("@class_rate_per_time", course.ClassRatePerTime > 0 ? course.ClassRatePerTime : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_4", course.ClassRate4 > 0 ? course.ClassRate4 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_8", course.ClassRate8 > 0 ? course.ClassRate8 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_12", course.ClassRate12 > 0 ? course.ClassRate12 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_16", course.ClassRate16 > 0 ? course.ClassRate16 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_monthly", course.ClassRateMonthly > 0 ? course.ClassRateMonthly : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_night", course.ClassRateNight > 0 ? course.ClassRateNight : DBNull.Value);
         command.Parameters.AddWithValue("@trainer_id", 
             string.IsNullOrWhiteSpace(course.TrainerId) ? DBNull.Value : course.TrainerId);
 
@@ -168,6 +230,13 @@ public class CourseDao
                 class_time = @class_time,
                 class_duration = @class_duration,
                 class_rate = @class_rate,
+                class_rate_per_time = @class_rate_per_time,
+                class_rate_4 = @class_rate_4,
+                class_rate_8 = @class_rate_8,
+                class_rate_12 = @class_rate_12,
+                class_rate_16 = @class_rate_16,
+                class_rate_monthly = @class_rate_monthly,
+                class_rate_night = @class_rate_night,
                 trainer_id = @trainer_id,
                 last_updated = CURRENT_TIMESTAMP
             WHERE class_id = @class_id
@@ -178,6 +247,13 @@ public class CourseDao
         command.Parameters.AddWithValue("@class_time", course.ClassTime);
         command.Parameters.AddWithValue("@class_duration", course.ClassDuration);
         command.Parameters.AddWithValue("@class_rate", course.ClassRate);
+        command.Parameters.AddWithValue("@class_rate_per_time", course.ClassRatePerTime > 0 ? course.ClassRatePerTime : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_4", course.ClassRate4 > 0 ? course.ClassRate4 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_8", course.ClassRate8 > 0 ? course.ClassRate8 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_12", course.ClassRate12 > 0 ? course.ClassRate12 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_16", course.ClassRate16 > 0 ? course.ClassRate16 : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_monthly", course.ClassRateMonthly > 0 ? course.ClassRateMonthly : DBNull.Value);
+        command.Parameters.AddWithValue("@class_rate_night", course.ClassRateNight > 0 ? course.ClassRateNight : DBNull.Value);
         command.Parameters.AddWithValue("@trainer_id", 
             string.IsNullOrWhiteSpace(course.TrainerId) ? DBNull.Value : course.TrainerId);
 
@@ -256,9 +332,7 @@ public class CourseDao
         };
 
         command.CommandText = $@"
-            SELECT c.class_id, c.class_title, c.class_time, c.class_duration, 
-                   c.class_rate, c.trainer_id,
-                   t.trainer_fname || ' ' || t.trainer_lname AS trainer_name
+            SELECT {SelectColumns}
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
             WHERE {whereClause}
@@ -269,19 +343,96 @@ public class CourseDao
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var course = CourseItem.FromDatabase(
-                classId: reader.GetString(0),
-                classTitle: reader.GetString(1),
-                classTime: reader.GetInt32(2),
-                classDuration: reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
-                classRate: reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-                trainerId: reader.IsDBNull(5) ? null : reader.GetString(5),
-                trainerName: reader.IsDBNull(6) ? "" : reader.GetString(6)
-            );
-            courses.Add(course);
+            courses.Add(ReadCourseFromReader(reader));
         }
 
         return courses;
+    }
+
+    /// <summary>
+    /// Search courses with multi-field filter (AND logic)
+    /// </summary>
+    public async Task<List<CourseItem>> SearchCoursesMultiFieldAsync(
+        string? classIdKeyword,
+        string? classTitleKeyword,
+        string? trainerNameFilter)
+    {
+        var courses = new List<CourseItem>();
+
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        var conditions = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(classIdKeyword))
+        {
+            conditions.Add("c.class_id LIKE @classId");
+            command.Parameters.AddWithValue("@classId", $"%{classIdKeyword}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(classTitleKeyword))
+        {
+            conditions.Add("c.class_title LIKE @classTitle");
+            command.Parameters.AddWithValue("@classTitle", $"%{classTitleKeyword}%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(trainerNameFilter) && trainerNameFilter != "ทั้งหมด")
+        {
+            conditions.Add("(t.trainer_fname || ' ' || t.trainer_lname) = @trainerName");
+            command.Parameters.AddWithValue("@trainerName", trainerNameFilter);
+        }
+
+        var whereClause = conditions.Count > 0
+            ? "WHERE " + string.Join(" AND ", conditions)
+            : "";
+
+        command.CommandText = $@"
+            SELECT {SelectColumns}
+            FROM Course c
+            LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
+            {whereClause}
+            ORDER BY c.class_id
+        ";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            courses.Add(ReadCourseFromReader(reader));
+        }
+
+        return courses;
+    }
+
+    /// <summary>
+    /// Get distinct trainer names from courses (for filter ComboBox)
+    /// </summary>
+    public async Task<List<string>> GetAllTrainerNamesAsync()
+    {
+        var names = new List<string>();
+
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT DISTINCT t.trainer_fname || ' ' || t.trainer_lname AS trainer_name
+            FROM Course c
+            INNER JOIN Trainer t ON c.trainer_id = t.trainer_id
+            WHERE c.trainer_id IS NOT NULL
+            ORDER BY trainer_name
+        ";
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (!reader.IsDBNull(0))
+            {
+                names.Add(reader.GetString(0));
+            }
+        }
+
+        return names;
     }
 
     /// <summary>

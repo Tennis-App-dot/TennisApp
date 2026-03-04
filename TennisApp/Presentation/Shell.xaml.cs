@@ -14,7 +14,7 @@ public sealed partial class Shell : UserControl
         ["Course"] = typeof(CoursePage),
         ["RegisterCourse"] = typeof(RegisterCoursePage),
         ["Booking"] = typeof(BookingPage),
-        ["UsageLog"] = typeof(UsageLogPage),
+        ["UsageLog"] = typeof(CourtUsageLogPage),
         ["Reports"] = typeof(ReportsPage)
     };
 

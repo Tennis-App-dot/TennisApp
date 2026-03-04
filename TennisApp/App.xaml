@@ -15,7 +15,10 @@
             
             <!-- Converters -->
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
             <converters:AlternatingRowConverter x:Key="AlternatingRowConverter"/>
+            <converters:StatusToColorConverter x:Key="StatusToColorConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

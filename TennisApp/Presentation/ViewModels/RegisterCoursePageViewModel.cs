@@ -66,6 +66,7 @@ public partial class RegisterCoursePageViewModel : ObservableObject
     {
         try
         {
+            _databaseService.EnsureInitialized();
             System.Diagnostics.Debug.WriteLine("🔍 LoadTraineesAsync started...");
             
             IsLoading = true;

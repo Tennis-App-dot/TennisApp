@@ -19,7 +19,7 @@ public partial class App : Application
         // Initialize SQLite for Database Integration
         SQLitePCL.Batteries_V2.Init();
 
-        // Initialize Database Service
+        // ✅ สร้าง DatabaseService แบบ lightweight (ไม่สร้าง DAO / ไม่ block main thread)
         DatabaseService = new DatabaseService();
 
         ConfigureFonts();
@@ -66,7 +66,7 @@ public partial class App : Application
         MainWindow.Activate();
         System.Diagnostics.Debug.WriteLine("🎯 MainWindow.Activate() complete");
 
-        // Initialize Database asynchronously
+        // ✅ Initialize Database on background thread (ไม่ block UI)
         _ = InitializeDatabaseAsync();
     }
 
@@ -209,23 +209,14 @@ public partial class App : Application
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("Starting Database Initialization...");
+            System.Diagnostics.Debug.WriteLine("Starting Database Initialization (async)...");
 
-            var databaseService = new Services.DatabaseService();
+            // ✅ สร้างตารางทั้งหมดบน background thread
+            await DatabaseService.InitializeAsync();
 
-            System.Diagnostics.Debug.WriteLine($"Database Path: {databaseService.GetDatabasePath()}");
-            System.Diagnostics.Debug.WriteLine($"Database Ready: {databaseService.IsDatabaseReady()}");
-
-            var courts = await databaseService.Courts.GetAllCourtsAsync();
-
-            System.Diagnostics.Debug.WriteLine($"Database ready - {courts.Count} courts found");
-
-#if DEBUG
-            foreach (var court in courts)
-            {
-                System.Diagnostics.Debug.WriteLine($"   - Court {court.CourtID}: {court.Status} ({court.LastUpdated:dd/MM/yyyy HH:mm})");
-            }
-#endif
+            System.Diagnostics.Debug.WriteLine($"Database Path: {DatabaseService.GetDatabasePath()}");
+            System.Diagnostics.Debug.WriteLine($"Database Ready: {DatabaseService.IsDatabaseReady()}");
+            System.Diagnostics.Debug.WriteLine("✅ Database initialization complete");
         }
         catch (Exception ex)
         {

@@ -23,12 +23,10 @@ public partial class CourtPageViewModel : ObservableObject
         {
             _databaseService = new DatabaseService();
             System.Diagnostics.Debug.WriteLine("DatabaseService สร้างสำเร็จ");
-            System.Diagnostics.Debug.WriteLine("CourtPageViewModel สร้างแล้ว - พร้อมเชื่อมต่อ Database");
         }
         catch (System.Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"❌ CourtPageViewModel constructor error: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"📍 Stack: {ex.StackTrace}");
         }
     }
 
@@ -37,6 +35,7 @@ public partial class CourtPageViewModel : ObservableObject
     {
         try
         {
+            _databaseService.EnsureInitialized();
             System.Diagnostics.Debug.WriteLine("LoadCourtsAsync เริ่มโหลดข้อมูล...");
             
             var courtsFromDb = await _databaseService.Courts.GetAllCourtsAsync().ConfigureAwait(false);

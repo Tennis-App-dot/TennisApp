@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using TennisApp.Models;
 using TennisApp.Services;
-using TennisApp.Helpers;
 
 namespace TennisApp.Presentation.Pages;
 
@@ -41,35 +40,14 @@ public sealed partial class CourseEditPage : Page
             {
                 TxtCourseId.Text = _currentCourse.ClassId;
                 TxtCourseName.Text = _currentCourse.ClassTitle;
-                TxtCourseFee.Text = _currentCourse.ClassRate.ToString();
-                TxtSessions.Text = _currentCourse.ClassTime.ToString();
 
-                // Parse and show course type information with validation
-                var txtCourseIdHint = this.FindName("TxtCourseIdHint") as TextBlock;
-                var (isValid, courseType, courseName, sessionCountFromId, _) = CourseIdParser.ParseCourseId(classId);
-                
-                if (isValid && txtCourseIdHint != null)
-                {
-                    // Check if session count matches the course ID
-                    if (_currentCourse.ClassTime != sessionCountFromId)
-                    {
-                        txtCourseIdHint.Text = $"{CourseIdParser.GetCourseTypeDescription(courseType)} - รหัสระบุ {sessionCountFromId} ครั้ง แต่ฐานข้อมูล {_currentCourse.ClassTime} ครั้ง";
-                        txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                            Microsoft.UI.Colors.Orange);
-                    }
-                    else
-                    {
-                        txtCourseIdHint.Text = $"{CourseIdParser.GetCourseTypeDescription(courseType)} - {sessionCountFromId} ครั้ง";
-                        txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                            Microsoft.UI.Colors.DodgerBlue);
-                    }
-                }
-                else if (txtCourseIdHint != null)
-                {
-                    txtCourseIdHint.Text = "รหัสคอร์สไม่ถูกต้องตามรูปแบบ";
-                    txtCourseIdHint.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Microsoft.UI.Colors.Red);
-                }
+                // Load tier pricing
+                TxtRatePerTime.Text = _currentCourse.ClassRatePerTime > 0 ? _currentCourse.ClassRatePerTime.ToString() : "";
+                TxtRate4.Text = _currentCourse.ClassRate4 > 0 ? _currentCourse.ClassRate4.ToString() : "";
+                TxtRate8.Text = _currentCourse.ClassRate8 > 0 ? _currentCourse.ClassRate8.ToString() : "";
+                TxtRate12.Text = _currentCourse.ClassRate12 > 0 ? _currentCourse.ClassRate12.ToString() : "";
+                TxtRate16.Text = _currentCourse.ClassRate16 > 0 ? _currentCourse.ClassRate16.ToString() : "";
+                TxtRateMonthly.Text = _currentCourse.ClassRateMonthly > 0 ? _currentCourse.ClassRateMonthly.ToString() : "";
 
                 System.Diagnostics.Debug.WriteLine($"✅ Loaded course data: {classId}");
             }
@@ -85,7 +63,7 @@ public sealed partial class CourseEditPage : Page
         try
         {
             var trainers = await _database.Trainers.GetAllTrainersAsync();
-            
+
             CmbTrainer.Items.Clear();
             foreach (var trainer in trainers)
             {
@@ -96,7 +74,6 @@ public sealed partial class CourseEditPage : Page
                 };
                 CmbTrainer.Items.Add(item);
 
-                // Select current trainer
                 if (_currentCourse != null && trainer.TrainerId == _currentCourse.TrainerId)
                 {
                     CmbTrainer.SelectedItem = item;
@@ -119,67 +96,40 @@ public sealed partial class CourseEditPage : Page
 
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        // Validate required fields
         if (string.IsNullOrWhiteSpace(TxtCourseName.Text))
         {
             await ShowErrorDialog("กรุณากรอกชื่อคอร์ส");
             return;
         }
 
-        // Validate session count
-        if (string.IsNullOrWhiteSpace(TxtSessions.Text) || !int.TryParse(TxtSessions.Text, out var sessions))
-        {
-            await ShowErrorDialog("กรุณากรอกจำนวนครั้งที่ถูกต้อง");
-            return;
-        }
+        // Parse tier pricing
+        int.TryParse(TxtRatePerTime.Text, out var ratePerTime);
+        int.TryParse(TxtRate4.Text, out var rate4);
+        int.TryParse(TxtRate8.Text, out var rate8);
+        int.TryParse(TxtRate12.Text, out var rate12);
+        int.TryParse(TxtRate16.Text, out var rate16);
+        int.TryParse(TxtRateMonthly.Text, out var rateMonthly);
 
-        if (!CourseIdParser.IsValidSessionCount(sessions))
-        {
-            await ShowErrorDialog("จำนวนครั้งต้องอยู่ระหว่าง 1-99");
-            return;
-        }
-
-        // Validate that session count matches course ID
-        var (isValid, _, _, sessionCountFromId, _) = CourseIdParser.ParseCourseId(TxtCourseId.Text);
-        if (isValid && sessions != sessionCountFromId)
-        {
-            var confirm = await ShowConfirmDialog(
-                "จำนวนครั้งไม่ตรงกับรหัสคอร์ส",
-                $"รหัสคอร์ส {TxtCourseId.Text} ระบุว่าควรเป็น {sessionCountFromId} ครั้ง\n" +
-                $"แต่คุณกรอก {sessions} ครั้ง\n\n" +
-                $"คุณแน่ใจหรือไม่ว่าต้องการบันทึก?"
-            );
-
-            if (!confirm)
-            {
-                return;
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(TxtCourseFee.Text) || !int.TryParse(TxtCourseFee.Text, out var fee))
-        {
-            await ShowErrorDialog("กรุณากรอกค่าสมัครคอร์สที่ถูกต้อง");
-            return;
-        }
-
-        // Get selected values
-        var duration = 1; // Fixed at 1 hour per session
-        var trainerId = CmbTrainer.SelectedItem is ComboBoxItem selectedTrainer 
-            ? selectedTrainer.Tag?.ToString() 
+        var trainerId = CmbTrainer.SelectedItem is ComboBoxItem selectedTrainer
+            ? selectedTrainer.Tag?.ToString()
             : null;
 
-        // Update course object
         var course = new CourseItem
         {
             ClassId = TxtCourseId.Text,
             ClassTitle = TxtCourseName.Text,
-            ClassTime = sessions,
-            ClassDuration = duration,
-            ClassRate = fee,
+            ClassTime = _currentCourse?.ClassTime ?? 0,
+            ClassDuration = 1,
+            ClassRate = ratePerTime,
+            ClassRatePerTime = ratePerTime,
+            ClassRate4 = rate4,
+            ClassRate8 = rate8,
+            ClassRate12 = rate12,
+            ClassRate16 = rate16,
+            ClassRateMonthly = rateMonthly,
             TrainerId = trainerId ?? string.Empty
         };
 
-        // Update in database
         var success = await _database.Courses.UpdateCourseAsync(course);
 
         if (success)
@@ -195,38 +145,6 @@ public sealed partial class CourseEditPage : Page
         {
             await ShowErrorDialog("ไม่สามารถบันทึกข้อมูลได้");
         }
-    }
-
-    private async System.Threading.Tasks.Task<bool> ShowConfirmDialog(string title, string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = title,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            PrimaryButtonText = "ใช่",
-            CloseButtonText = "ไม่",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        var result = await dialog.ShowAsync();
-        return result == ContentDialogResult.Primary;
     }
 
     private async System.Threading.Tasks.Task ShowErrorDialog(string message)

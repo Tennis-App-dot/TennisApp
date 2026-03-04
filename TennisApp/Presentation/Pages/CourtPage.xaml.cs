@@ -340,27 +340,32 @@ public sealed partial class CourtPage : Page
         
         try
         {
+            bool confirmed = await ShowConfirm(
+                "ยืนยันการรีเซ็ต",
+                "คุณต้องการลบข้อมูลทั้งหมดในฐานข้อมูลใช่หรือไม่?\n(โครงสร้างฐานข้อมูลจะยังคงอยู่)"
+            );
+
+            if (!confirmed)
+            {
+                System.Diagnostics.Debug.WriteLine("User cancelled reset");
+                return;
+            }
+
             var databaseService = new TennisApp.Services.DatabaseService();
-            var dbPath = databaseService.GetDatabasePath();
-            var connectionString = $"Data Source={dbPath}";
             
-            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-            await connection.OpenAsync();
-            
-            var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM Court";
-            await command.ExecuteNonQueryAsync();
+            // ✅ ใช้ method ใหม่ที่ลบข้อมูลทั้งหมด
+            await databaseService.ClearAllDataAsync();
             
             // Refresh UI
             await VM.LoadCourtsAsync();
             
             System.Diagnostics.Debug.WriteLine("Reset Database completed");
-            await ShowMessage("Success", "Database reset completed");
+            await ShowMessage("สำเร็จ", "ลบข้อมูลทั้งหมดในฐานข้อมูลเรียบร้อยแล้ว");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Reset Database failed: {ex.Message}");
-            await ShowMessage("Error", $"Reset Database failed: {ex.Message}");
+            await ShowMessage("ข้อผิดพลาด", $"ไม่สามารถรีเซ็ตฐานข้อมูลได้: {ex.Message}");
         }
     }
     
@@ -374,15 +379,19 @@ public sealed partial class CourtPage : Page
             var databaseService = new TennisApp.Services.DatabaseService();
             var dbPath = databaseService.GetDatabasePath();
             var isReady = databaseService.IsDatabaseReady();
-            var courts = await databaseService.Courts.GetAllCourtsAsync();
-            
-            var message = $"Database Path: {dbPath}\n" +
-                         $"Database Ready: {isReady}\n" +
-                         $"Court Count: {courts.Count}\n\n";
-            
-            foreach (var court in courts)
+
+            // Get all table names and row counts
+            var tables = await databaseService.GetAllTableNamesAsync();
+            var rowCounts = await databaseService.GetTableRowCountsAsync();
+
+            var message = $"Database Path:\n{dbPath}\n\n" +
+                         $"Database Ready: {isReady}\n\n" +
+                         $"Tables Found: {tables.Count}\n\n";
+
+            foreach (var table in tables)
             {
-                message += $"Court {court.CourtID}: {court.Status} ({court.LastUpdated:dd/MM/yyyy})\n";
+                var count = rowCounts.ContainsKey(table) ? rowCounts[table] : 0;
+                message += $"• {table}: {count} rows\n";
             }
             
             System.Diagnostics.Debug.WriteLine($"Database Info:\n{message}");
@@ -391,7 +400,7 @@ public sealed partial class CourtPage : Page
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Check Database failed: {ex.Message}");
-            await ShowMessage("Error", $"Check Database failed: {ex.Message}");
+            await ShowMessage("ข้อผิดพลาด", $"ไม่สามารถตรวจสอบฐานข้อมูลได้: {ex.Message}");
         }
     }
 #endif

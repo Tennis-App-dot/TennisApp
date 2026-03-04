@@ -61,10 +61,12 @@ public class ClassRegisRecordDao
                 t.trainee_phone,
                 c.class_title,
                 c.class_time,
-                c.class_rate
+                c.class_rate,
+                tr.trainer_fname || ' ' || tr.trainer_lname AS trainer_name
             FROM ClassRegisRecord r
             INNER JOIN Trainee t ON r.trainee_id = t.trainee_id
             INNER JOIN Course c ON r.class_id = c.class_id
+            LEFT JOIN Trainer tr ON c.trainer_id = tr.trainer_id
             ORDER BY r.regis_date DESC
         ";
 
@@ -79,7 +81,8 @@ public class ClassRegisRecordDao
                 traineePhone: reader.IsDBNull(4) ? "" : reader.GetString(4),
                 className: reader.GetString(5),
                 classTime: reader.GetInt32(6),
-                classRate: reader.GetInt32(7)
+                classRate: reader.GetInt32(7),
+                trainerName: reader.IsDBNull(8) ? "" : reader.GetString(8)
             );
             registrations.Add(registration);
         }
@@ -108,10 +111,12 @@ public class ClassRegisRecordDao
                 t.trainee_phone,
                 c.class_title,
                 c.class_time,
-                c.class_rate
+                c.class_rate,
+                tr.trainer_fname || ' ' || tr.trainer_lname AS trainer_name
             FROM ClassRegisRecord r
             INNER JOIN Trainee t ON r.trainee_id = t.trainee_id
             INNER JOIN Course c ON r.class_id = c.class_id
+            LEFT JOIN Trainer tr ON c.trainer_id = tr.trainer_id
             WHERE r.trainee_id = @trainee_id
             ORDER BY r.regis_date DESC
         ";
@@ -128,7 +133,8 @@ public class ClassRegisRecordDao
                 traineePhone: reader.IsDBNull(4) ? "" : reader.GetString(4),
                 className: reader.GetString(5),
                 classTime: reader.GetInt32(6),
-                classRate: reader.GetInt32(7)
+                classRate: reader.GetInt32(7),
+                trainerName: reader.IsDBNull(8) ? "" : reader.GetString(8)
             );
             registrations.Add(registration);
         }
@@ -156,10 +162,12 @@ public class ClassRegisRecordDao
                 t.trainee_phone,
                 c.class_title,
                 c.class_time,
-                c.class_rate
+                c.class_rate,
+                tr.trainer_fname || ' ' || tr.trainer_lname AS trainer_name
             FROM ClassRegisRecord r
             INNER JOIN Trainee t ON r.trainee_id = t.trainee_id
             INNER JOIN Course c ON r.class_id = c.class_id
+            LEFT JOIN Trainer tr ON c.trainer_id = tr.trainer_id
             WHERE r.class_id = @class_id
             ORDER BY r.regis_date DESC
         ";
@@ -176,7 +184,8 @@ public class ClassRegisRecordDao
                 traineePhone: reader.IsDBNull(4) ? "" : reader.GetString(4),
                 className: reader.GetString(5),
                 classTime: reader.GetInt32(6),
-                classRate: reader.GetInt32(7)
+                classRate: reader.GetInt32(7),
+                trainerName: reader.IsDBNull(8) ? "" : reader.GetString(8)
             );
             registrations.Add(registration);
         }
@@ -300,10 +309,12 @@ public class ClassRegisRecordDao
                 t.trainee_phone,
                 c.class_title,
                 c.class_time,
-                c.class_rate
+                c.class_rate,
+                tr.trainer_fname || ' ' || tr.trainer_lname AS trainer_name
             FROM ClassRegisRecord r
             INNER JOIN Trainee t ON r.trainee_id = t.trainee_id
             INNER JOIN Course c ON r.class_id = c.class_id
+            LEFT JOIN Trainer tr ON c.trainer_id = tr.trainer_id
             WHERE 
                 r.trainee_id LIKE @keyword OR
                 t.trainee_fname LIKE @keyword OR
@@ -325,7 +336,8 @@ public class ClassRegisRecordDao
                 traineePhone: reader.IsDBNull(4) ? "" : reader.GetString(4),
                 className: reader.GetString(5),
                 classTime: reader.GetInt32(6),
-                classRate: reader.GetInt32(7)
+                classRate: reader.GetInt32(7),
+                trainerName: reader.IsDBNull(8) ? "" : reader.GetString(8)
             );
             registrations.Add(registration);
         }

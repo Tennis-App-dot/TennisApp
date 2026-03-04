@@ -67,6 +67,7 @@ public partial class TrainerPageViewModel : ObservableObject
     {
         try
         {
+            _databaseService.EnsureInitialized();
             IsLoading = true;
             HasNoResults = false;
             _currentPage = 1;

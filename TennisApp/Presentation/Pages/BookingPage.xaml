@@ -2,13 +2,256 @@
     x:Class="TennisApp.Presentation.Pages.BookingPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:TennisApp.Presentation.Pages"
+    xmlns:models="using:TennisApp.Models"
+    xmlns:converters="using:TennisApp.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    Background="#F5F5F5">
 
-    <Grid>
+    <Page.Resources>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:StatusToColorConverter x:Key="StatusToColorConverter"/>
+    </Page.Resources>
 
+    <Grid Padding="20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="จองสนาม" FontSize="28" FontWeight="SemiBold"
+                   Margin="0,0,0,24"/>
+
+        <!-- Search Bar (single ComboBox like TrainerPage) -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="150"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Filter Dropdown -->
+            <ComboBox x:Name="FilterFieldComboBox" Grid.Column="0"
+                      PlaceholderText="ค้นหาจาก"
+                      Background="White" Height="45" MinWidth="150"
+                      Margin="0,0,20,0" VerticalAlignment="Center">
+                <ComboBoxItem Content="ทั้งหมด" Tag="All" IsSelected="True"/>
+                <ComboBoxItem Content="ชื่อผู้จอง" Tag="Name"/>
+                <ComboBoxItem Content="รหัสการจอง" Tag="Id"/>
+            </ComboBox>
+
+            <!-- Search TextBox + Button -->
+            <Grid Grid.Column="1" Margin="0,0,20,0" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="FilterSearchTextBox" Grid.Column="0"
+                         PlaceholderText="ค้นหา..."
+                         Background="White" Height="45"
+                         VerticalContentAlignment="Center" FontSize="16"
+                         BorderThickness="1" BorderBrush="#E0E0E0" CornerRadius="4"/>
+                <Button Grid.Column="1" Click="BtnSearch_Click"
+                        Background="White" BorderBrush="#E0E0E0" BorderThickness="1"
+                        Height="45" Width="50" CornerRadius="4"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                    <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="#666"/>
+                </Button>
+            </Grid>
+
+            <!-- Add Button -->
+            <Button Grid.Column="2" Content="จองสนาม" Click="BtnAddBooking_Click"
+                    Background="#4A148C" Foreground="White" FontSize="16"
+                    Height="45" Padding="24,10" CornerRadius="4"/>
+        </Grid>
+
+        <!-- Summary (compact inline) -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="24" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="#2196F3" VerticalAlignment="Center"/>
+                <TextBlock Text="จองวันนี้:" FontSize="14" Foreground="#666" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TodayCountText" Text="0" FontSize="14" FontWeight="SemiBold"
+                           Foreground="#2196F3" VerticalAlignment="Center"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="#FF9800" VerticalAlignment="Center"/>
+                <TextBlock Text="จองล่วงหน้า:" FontSize="14" Foreground="#666" VerticalAlignment="Center"/>
+                <TextBlock x:Name="FutureCountText" Text="0" FontSize="14" FontWeight="SemiBold"
+                           Foreground="#FF9800" VerticalAlignment="Center"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="10" Height="10" Fill="#F44336" VerticalAlignment="Center"/>
+                <TextBlock Text="ยกเลิก:" FontSize="14" Foreground="#666" VerticalAlignment="Center"/>
+                <TextBlock x:Name="CancelledCountText" Text="0" FontSize="14" FontWeight="SemiBold"
+                           Foreground="#F44336" VerticalAlignment="Center"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Tables -->
+        <ScrollViewer Grid.Row="3" VerticalScrollMode="Auto">
+            <StackPanel Spacing="16">
+
+                <!-- Paid Reservations -->
+                <Border Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="การจองแบบเช่า" FontSize="15" FontWeight="SemiBold"
+                                   Padding="16,14"/>
+
+                        <Grid Grid.Row="1" Background="#00E676" MinHeight="44" Padding="16,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.2*"/>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="1.2*"/>
+                                <ColumnDefinition Width="1.5*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.5*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="รหัส" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="ผู้จอง" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="วันที่" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="เวลา" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="สถานะ" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="5" Text="ดำเนินการ" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Grid>
+
+                        <ListView x:Name="AllReservationsListView" Grid.Row="2" SelectionMode="None">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:PaidCourtReservationItem">
+                                    <Grid MinHeight="44" Padding="16,8" Background="White"
+                                          BorderBrush="#F0F0F0" BorderThickness="0,0,0,1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.2*"/>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="1.2*"/>
+                                            <ColumnDefinition Width="1.5*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="1.5*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{x:Bind ReserveId}" VerticalAlignment="Center" Foreground="#555"/>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind ReserveName}"/>
+                                            <TextBlock Text="{x:Bind ReservePhone}" FontSize="12" Foreground="#999"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ReserveDateDisplay}" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="{x:Bind TimeRangeDisplay}" VerticalAlignment="Center"/>
+                                        <Border Grid.Column="4" Background="{x:Bind Status, Converter={StaticResource StatusToColorConverter}}"
+                                                CornerRadius="10" Padding="8,3" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <TextBlock Text="{x:Bind StatusDisplay}" FontSize="11" Foreground="White"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Button Tag="{x:Bind}" Click="BtnDeletePaid_Click"
+                                                    Background="Transparent" Padding="4">
+                                                <FontIcon Glyph="&#xE74D;" Foreground="#FF9800" FontSize="18"/>
+                                            </Button>
+                                            <Button Tag="{x:Bind}" Click="BtnCancelPaid_Click"
+                                                    Background="Transparent" Padding="4">
+                                                <FontIcon Glyph="&#xE711;" Foreground="#F44336" FontSize="18"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+                </Border>
+
+                <!-- Course Reservations -->
+                <Border Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="การจองคอร์ส" FontSize="15" FontWeight="SemiBold"
+                                   Padding="16,14"/>
+
+                        <Grid Grid.Row="1" Background="#00E676" MinHeight="44" Padding="16,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.2*"/>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="1.2*"/>
+                                <ColumnDefinition Width="1.5*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.5*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="รหัส" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="ผู้จอง / คอร์ส" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="วันที่" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="เวลา" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="สถานะ" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="5" Text="ดำเนินการ" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Grid>
+
+                        <ListView x:Name="CourseReservationsListView" Grid.Row="2" SelectionMode="None">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:CourseCourtReservationItem">
+                                    <Grid MinHeight="44" Padding="16,8" Background="White"
+                                          BorderBrush="#F0F0F0" BorderThickness="0,0,0,1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.2*"/>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="1.2*"/>
+                                            <ColumnDefinition Width="1.5*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="1.5*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{x:Bind ReserveId}" VerticalAlignment="Center" Foreground="#555"/>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind ReserveName}"/>
+                                            <TextBlock Text="{x:Bind ClassDisplayName}" FontSize="12" Foreground="#888"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{x:Bind ReserveDateDisplay}" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="{x:Bind TimeRangeDisplay}" VerticalAlignment="Center"/>
+                                        <Border Grid.Column="4" Background="{x:Bind Status, Converter={StaticResource StatusToColorConverter}}"
+                                                CornerRadius="10" Padding="8,3" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <TextBlock Text="{x:Bind StatusDisplay}" FontSize="11" Foreground="White"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Button Tag="{x:Bind}" Click="BtnDeleteCourse_Click"
+                                                    Background="Transparent" Padding="4">
+                                                <FontIcon Glyph="&#xE74D;" Foreground="#FF9800" FontSize="18"/>
+                                            </Button>
+                                            <Button Tag="{x:Bind}" Click="BtnCancelCourse_Click"
+                                                    Background="Transparent" Padding="4">
+                                                <FontIcon Glyph="&#xE711;" Foreground="#F44336" FontSize="18"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>

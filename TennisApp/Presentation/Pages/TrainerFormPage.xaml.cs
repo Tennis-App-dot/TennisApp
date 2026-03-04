@@ -20,6 +20,7 @@ public sealed partial class TrainerFormPage : Page
     {
         InitializeComponent();
         _databaseService = new DatabaseService();
+        _databaseService.EnsureInitialized();
     }
 
     private async void BtnUploadPhoto_Click(object sender, RoutedEventArgs e)

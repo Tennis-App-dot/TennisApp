@@ -20,6 +20,8 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
     private string _className = string.Empty;
     private int _classTime;
     private int _classRate;
+    private string _trainerName = string.Empty;
+    private int _rowNumber;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -138,10 +140,45 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
         }
     }
 
+    public string TrainerName
+    {
+        get => _trainerName;
+        set
+        {
+            if (_trainerName != value)
+            {
+                _trainerName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Row number for display in list
+    /// </summary>
+    public int RowNumber
+    {
+        get => _rowNumber;
+        set
+        {
+            if (_rowNumber != value)
+            {
+                _rowNumber = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     /// <summary>
     /// Format registration date as Thai format
     /// </summary>
     public string RegisDateFormatted => RegisDate.ToString("dd/MM/yyyy");
+
+    public string ClassTimeText => ClassTime > 0 ? $"{ClassTime} ครั้ง" : "-";
+
+    public string ClassRateText => ClassRate > 0 ? $"฿{ClassRate:N0}" : "-";
+
+    public string TrainerDisplayName => string.IsNullOrWhiteSpace(TrainerName) ? "ไม่ระบุ" : TrainerName;
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
@@ -159,7 +196,8 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
         string? traineePhone = null,
         string? className = null,
         int classTime = 0,
-        int classRate = 0)
+        int classRate = 0,
+        string? trainerName = null)
     {
         return new ClassRegisRecordItem
         {
@@ -170,7 +208,8 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
             TraineePhone = traineePhone ?? string.Empty,
             ClassName = className ?? string.Empty,
             ClassTime = classTime,
-            ClassRate = classRate
+            ClassRate = classRate,
+            TrainerName = trainerName ?? string.Empty
         };
     }
 }

@@ -37,7 +37,6 @@ public sealed partial class TraineeHistoryPage : Page
 
             var databaseService = new DatabaseService();
 
-            // Load trainee info
             _trainee = await databaseService.Trainees.GetTraineeByIdAsync(traineeId);
 
             if (_trainee == null)
@@ -46,11 +45,12 @@ public sealed partial class TraineeHistoryPage : Page
                 return;
             }
 
-            // Display trainee info
             DisplayTraineeInfo(_trainee);
 
-            // Load registration history
             _registrations = await databaseService.Registrations.GetRegistrationsByTraineeIdAsync(traineeId);
+
+            // Update summary badge
+            TxtTotalCourses.Text = _registrations.Count.ToString();
 
             if (_registrations.Count == 0)
             {
@@ -81,28 +81,17 @@ public sealed partial class TraineeHistoryPage : Page
     {
         try
         {
-            TxtTraineeId.Text = $"รหัสประจำตัวผู้เรียน: {trainee.TraineeId}";
-            TxtTraineeName.Text = $"ชื่อ-นามสกุล: {trainee.FullName}";
+            TxtTraineeName.Text = trainee.FullName;
+            TxtTraineeId.Text = $"รหัส: {trainee.TraineeId}";
             TxtTraineeNickname.Text = string.IsNullOrWhiteSpace(trainee.Nickname)
-                ? "ชื่อเล่น: -"
-                : $"ชื่อเล่น: {trainee.Nickname}";
-
-            if (trainee.BirthDate.HasValue)
-            {
-                TxtBirthDate.Text = $"วันเกิด: {trainee.BirthDate.Value:dd/MM/yyyy}";
-                TxtAge.Text = trainee.Age.HasValue ? $"อายุ: {trainee.Age.Value} ปี" : "อายุ: -";
-            }
-            else
-            {
-                TxtBirthDate.Text = "วันเกิด: -";
-                TxtAge.Text = "อายุ: -";
-            }
-
+                ? "" : $"ชื่อเล่น: {trainee.Nickname}";
             TxtPhone.Text = string.IsNullOrWhiteSpace(trainee.Phone)
-                ? "เบอร์ติดต่อ: -"
-                : $"เบอร์ติดต่อ: {trainee.Phone}";
+                ? "เบอร์: -" : $"เบอร์: {trainee.Phone}";
+            TxtBirthDate.Text = trainee.BirthDate.HasValue
+                ? $"วันเกิด: {trainee.BirthDate.Value:dd/MM/yyyy}" : "วันเกิด: -";
+            TxtAge.Text = trainee.Age.HasValue
+                ? $"อายุ: {trainee.Age.Value} ปี" : "";
 
-            // Load profile image
             if (trainee.ImageData != null && trainee.ImageData.Length > 0)
             {
                 var bitmap = await ImageHelper.CreateBitmapFromBytesAsync(trainee.ImageData);

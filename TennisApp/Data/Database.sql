@@ -145,66 +145,47 @@ CREATE INDEX IX_Trainer_Phone ON Trainer(trainer_phone);
 -- Course (Class) table
 -- =============================================================================
 CREATE TABLE Course (
-    class_id           TEXT(4) PRIMARY KEY NOT NULL,     -- e.g. 'TA01', 'T104', 'P201'
-    class_title        TEXT(50) NOT NULL,                -- Course name (Adult, Kids, etc.)
-    class_time         INTEGER NOT NULL,                 -- Number of sessions (1, 4, 8, 12)
-    class_duration     INTEGER NULL,                     -- Duration per session in hours (1, 2)
-    class_rate         INTEGER NULL,                     -- Course fee (600, 2200, etc.)
-    trainer_id         TEXT(9) NULL,                     -- FK to Trainer (optional)
-    created_date       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_updated       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+    class_id              TEXT(4) PRIMARY KEY NOT NULL,  -- e.g. 'TA04', 'T108', 'PM01', 'PC01'
+    class_title           TEXT(50) NOT NULL,             -- Course name (Adult, Kids, etc.)
+    class_time            INTEGER NOT NULL,              -- Default session count (4, 8, 12, 16)
+    class_duration        INTEGER NULL,                  -- Duration per session in hours
+    class_rate            INTEGER NULL,                  -- Legacy: backward-compat (= class_rate_per_time)
+    class_rate_per_time   INTEGER NULL,                  -- ราคาต่อครั้ง (TA=600, T1=600, T2=800, T3=900, PM=2500, PC=950)
+    class_rate_4          INTEGER NULL,                  -- ราคา 4 ครั้ง
+    class_rate_8          INTEGER NULL,                  -- ราคา 8 ครั้ง
+    class_rate_12         INTEGER NULL,                  -- ราคา 12 ครั้ง
+    class_rate_16         INTEGER NULL,                  -- ราคา 16 ครั้ง
+    class_rate_monthly    INTEGER NULL,                  -- ราคารายเดือน (T3=13,000)
+    class_rate_night      INTEGER NULL,                  -- ราคากลางคืน 18:00-21:00 (PC=1,050)
+    trainer_id            TEXT(9) NULL,                  -- FK to Trainer (optional)
+    created_date          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_updated          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     FOREIGN KEY (trainer_id) REFERENCES Trainer(trainer_id) ON DELETE SET NULL
 );
 
 -- Index for performance
-CREATE INDEX IX_Course_Title ON Course(class_title);
+CREATE INDEX IX_Course_Title   ON Course(class_title);
 CREATE INDEX IX_Course_Trainer ON Course(trainer_id);
 
--- CRUD Templates for Course:
+-- Course ID Format (4 chars): XXYY
+-- XX = Class Type:
+--   TA = Adult Class                 (฿600/ครั้ง)
+--   T1 = Red & Orange Ball           (฿600/ครั้ง)
+--   T2 = Intermediate Class          (฿800/ครั้ง)
+--   T3 = Competitive Class           (฿900/ครั้ง)
+--   PM = Private Kru Mee             (฿2,500/ครั้ง)
+--   PC = Private + Coach             (฿950 day / ฿1,050 night)
+-- YY = Session count: 04, 08, 12, 16
+-- Example: T108 = Red&Orange Ball, 8 sessions
 
--- Insert (Add course)
--- INSERT INTO Course (class_id, class_title, class_time, class_duration, class_rate, trainer_id)
--- VALUES (:class_id, :class_title, :class_time, :class_duration, :class_rate, :trainer_id);
-
--- Update (Edit course info)
--- UPDATE Course
--- SET
---     class_title    = :class_title,
---     class_time     = :class_time,
---     class_duration = :class_duration,
---     class_rate     = :class_rate,
---     trainer_id     = :trainer_id,
---     last_updated   = CURRENT_TIMESTAMP
--- WHERE class_id = :class_id;
-
--- Delete (Remove course)
--- DELETE FROM Course WHERE class_id = :class_id;
-
--- Select (Get list of courses with trainer info)
--- SELECT c.class_id, c.class_title, c.class_time, c.class_duration, c.class_rate, c.trainer_id,
---        t.trainer_fname || ' ' || t.trainer_lname AS trainer_name
--- FROM Course c
--- LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
--- ORDER BY c.class_id;
-
--- Select (Get course by ID)
--- SELECT * FROM Course WHERE class_id = :class_id;
-
--- Clear all courses
--- DELETE FROM Course;
-
--- Course ID Format (4 digits):
--- Position 1-2: Class Type
---   TA = Adult Class
---   T1 = Kids Class
---   T2 = Intermediate Class
---   T3 = Competitive Class
---   P1 = Private & Master Coach
---   P2 = Private & Standard Coach (Day)
---   P3 = Private & Standard Coach (Night)
--- Position 3-4: Number of sessions (01, 04, 08, 12)
--- Example: T104 = Kids Class (T1) with 4 sessions (04)
+-- Pricing reference (Talent Tennis Academy Fee & Tickets):
+-- TA Adult:       4=2,200  8=4,000
+-- T1 Red&Orange:  4=1,800  8=3,200  12=4,500
+-- T2 Intermediate:4=3,000  8=4,800  12=6,600  16=8,000
+-- T3 Competitive: 8=6,500  12=8,500 16=11,500 monthly=13,000
+-- PM Kru Mee:     per_time=2,500
+-- PC Coach:       per_time=950 (06:00-17:00)  night=1,050 (18:00-21:00)
 
 -- =============================================================================
 -- ClassRegisRecord (Course Registration) table
@@ -267,3 +248,256 @@ CREATE INDEX IX_ClassRegisRecord_Date ON ClassRegisRecord(regis_date);
 
 -- Clear all registrations
 -- DELETE FROM ClassRegisRecord;
+
+-- =============================================================================
+-- PaidCourtReservation (การจองสนามแบบเช่า - คิดเงิน)
+-- =============================================================================
+CREATE TABLE PaidCourtReservation (
+    p_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,    -- Reservation ID (YYYYMMDDXX)
+    court_id           TEXT(2) NOT NULL,                 -- FK to Court
+    p_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Date/time of booking request
+    p_reserve_date     DATE NOT NULL,                    -- Date to use court
+    p_reserve_time     TIME NOT NULL,                    -- Time to use court (HH:MM)
+    p_reserve_duration REAL NOT NULL,                    -- Duration in hours (e.g., 1.0, 2.0)
+    p_reserve_name     TEXT(50) NOT NULL,                -- Customer name
+    p_reserve_phone    TEXT(10) NULL,                    -- Customer phone (optional)
+    
+    FOREIGN KEY (court_id) REFERENCES Court(court_id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IX_PaidCourtReservation_Court ON PaidCourtReservation(court_id);
+CREATE INDEX IX_PaidCourtReservation_Date ON PaidCourtReservation(p_reserve_date);
+CREATE INDEX IX_PaidCourtReservation_Request ON PaidCourtReservation(p_request_date);
+
+-- CRUD Templates for PaidCourtReservation:
+
+-- Insert (Add paid reservation)
+-- INSERT INTO PaidCourtReservation (p_reserve_id, court_id, p_request_date, p_reserve_date, p_reserve_time, p_reserve_duration, p_reserve_name, p_reserve_phone)
+-- VALUES (:p_reserve_id, :court_id, :p_request_date, :p_reserve_date, :p_reserve_time, :p_reserve_duration, :p_reserve_name, :p_reserve_phone);
+
+-- Update (Edit paid reservation)
+-- UPDATE PaidCourtReservation
+-- SET
+--     court_id           = :court_id,
+--     p_reserve_date     = :p_reserve_date,
+--     p_reserve_time     = :p_reserve_time,
+--     p_reserve_duration = :p_reserve_duration,
+--     p_reserve_name     = :p_reserve_name,
+--     p_reserve_phone    = :p_reserve_phone
+-- WHERE p_reserve_id = :p_reserve_id;
+
+-- Delete (Remove paid reservation)
+-- DELETE FROM PaidCourtReservation WHERE p_reserve_id = :p_reserve_id;
+
+-- Select (Get all paid reservations with court info)
+-- SELECT 
+--     r.p_reserve_id,
+--     r.court_id,
+--     r.p_request_date,
+--     r.p_reserve_date,
+--     r.p_reserve_time,
+--     r.p_reserve_duration,
+--     r.p_reserve_name,
+--     r.p_reserve_phone,
+--     c.court_status
+-- FROM PaidCourtReservation r
+-- INNER JOIN Court c ON r.court_id = c.court_id
+-- ORDER BY r.p_reserve_date DESC, r.p_reserve_time DESC;
+
+-- Select (Get paid reservation by ID)
+-- SELECT * FROM PaidCourtReservation WHERE p_reserve_id = :p_reserve_id;
+
+-- Select (Get reservations by date)
+-- SELECT * FROM PaidCourtReservation WHERE p_reserve_date = :p_reserve_date;
+
+-- Select (Check if court is available at specific time)
+-- SELECT COUNT(*) FROM PaidCourtReservation
+-- WHERE court_id = :court_id
+--   AND p_reserve_date = :p_reserve_date
+--   AND time(p_reserve_time) < time(:end_time)
+--   AND time(p_reserve_time, '+' || p_reserve_duration || ' hours') > time(:start_time);
+
+-- Clear all paid reservations
+-- DELETE FROM PaidCourtReservation;
+
+-- Reservation ID Format (10 digits):
+-- Position 1-4: Year (YYYY)
+-- Position 5-6: Month (MM)
+-- Position 7-8: Day (DD)
+-- Position 9-10: Sequence number (01-99) of bookings made on that day
+-- Example: 2025041609 = Booked on April 16, 2025, 9th booking of the day
+
+-- =============================================================================
+-- CourseCourtReservation (การจองสนามสำหรับคอร์ส - ไม่คิดเงิน)
+-- =============================================================================
+CREATE TABLE CourseCourtReservation (
+    c_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,    -- Reservation ID (YYYYMMDDXX)
+    court_id           TEXT(2) NOT NULL,                 -- FK to Court
+    class_id           TEXT(4) NOT NULL,                 -- FK to Course
+    c_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Date/time of booking request
+    c_reserve_date     DATE NOT NULL,                    -- Date to use court
+    c_reserve_time     TIME NOT NULL,                    -- Time to use court (HH:MM)
+    c_reserve_name     TEXT(50) NOT NULL,                -- Trainer name (from Trainer table)
+    c_reserve_phone    TEXT(10) NULL,                    -- Trainer phone (from Trainer table)
+    
+    FOREIGN KEY (court_id) REFERENCES Court(court_id) ON DELETE CASCADE,
+    FOREIGN KEY (class_id) REFERENCES Course(class_id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IX_CourseCourtReservation_Court ON CourseCourtReservation(court_id);
+CREATE INDEX IX_CourseCourtReservation_Class ON CourseCourtReservation(class_id);
+CREATE INDEX IX_CourseCourtReservation_Date ON CourseCourtReservation(c_reserve_date);
+CREATE INDEX IX_CourseCourtReservation_Request ON CourseCourtReservation(c_request_date);
+
+-- CRUD Templates for CourseCourtReservation:
+
+-- Insert (Add course reservation)
+-- INSERT INTO CourseCourtReservation (c_reserve_id, court_id, class_id, c_request_date, c_reserve_date, c_reserve_time, c_reserve_name, c_reserve_phone)
+-- VALUES (:c_reserve_id, :court_id, :class_id, :c_request_date, :c_reserve_date, :c_reserve_time, :c_reserve_name, :c_reserve_phone);
+
+-- Update (Edit course reservation)
+-- UPDATE CourseCourtReservation
+-- SET
+--     court_id       = :court_id,
+--     class_id       = :class_id,
+--     c_reserve_date = :c_reserve_date,
+--     c_reserve_time = :c_reserve_time,
+--     c_reserve_name = :c_reserve_name,
+--     c_reserve_phone = :c_reserve_phone
+-- WHERE c_reserve_id = :c_reserve_id;
+
+-- Delete (Remove course reservation)
+-- DELETE FROM CourseCourtReservation WHERE c_reserve_id = :c_reserve_id;
+
+-- Select (Get all course reservations with details)
+-- SELECT 
+--     r.c_reserve_id,
+--     r.court_id,
+--     r.class_id,
+--     r.c_request_date,
+--     r.c_reserve_date,
+--     r.c_reserve_time,
+--     r.c_reserve_name,
+--     r.c_reserve_phone,
+--     c.court_status,
+--     co.class_title,
+--     co.class_duration
+-- FROM CourseCourtReservation r
+-- INNER JOIN Court c ON r.court_id = c.court_id
+-- INNER JOIN Course co ON r.class_id = co.class_id
+-- ORDER BY r.c_reserve_date DESC, r.c_reserve_time DESC;
+
+-- Select (Get course reservation by ID)
+-- SELECT * FROM CourseCourtReservation WHERE c_reserve_id = :c_reserve_id;
+
+-- Select (Get reservations by course)
+-- SELECT * FROM CourseCourtReservation WHERE class_id = :class_id;
+
+-- Clear all course reservations
+-- DELETE FROM CourseCourtReservation;
+
+-- =============================================================================
+-- PaidCourtUseLog (บันทึกการใช้สนามจริง - จากการเช่า)
+-- =============================================================================
+CREATE TABLE PaidCourtUseLog (
+    p_log_id           TEXT(10) PRIMARY KEY NOT NULL,    -- Log ID (YYYYMMDDXX)
+    p_reserve_id       TEXT(10) NOT NULL,                -- FK to PaidCourtReservation
+    p_checkin_time     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Actual check-in time
+    p_log_duration     REAL NOT NULL,                    -- Actual duration used (hours)
+    p_log_price        INTEGER NOT NULL,                 -- Price charged (Baht)
+    p_log_status       TEXT(20) NOT NULL DEFAULT 'completed', -- Status: completed, cancelled, no-show
+    
+    FOREIGN KEY (p_reserve_id) REFERENCES PaidCourtReservation(p_reserve_id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IX_PaidCourtUseLog_Reserve ON PaidCourtUseLog(p_reserve_id);
+CREATE INDEX IX_PaidCourtUseLog_CheckIn ON PaidCourtUseLog(p_checkin_time);
+
+-- CRUD Templates for PaidCourtUseLog:
+
+-- Insert (Add use log)
+-- INSERT INTO PaidCourtUseLog (p_log_id, p_reserve_id, p_checkin_time, p_log_duration, p_log_price, p_log_status)
+-- VALUES (:p_log_id, :p_reserve_id, :p_checkin_time, :p_log_duration, :p_log_price, :p_log_status);
+
+-- Update (Edit use log)
+-- UPDATE PaidCourtUseLog
+-- SET
+--     p_log_duration = :p_log_duration,
+--     p_log_price    = :p_log_price,
+--     p_log_status   = :p_log_status
+-- WHERE p_log_id = :p_log_id;
+
+-- Select (Get all use logs with reservation details)
+-- SELECT 
+--     l.p_log_id,
+--     l.p_reserve_id,
+--     l.p_checkin_time,
+--     l.p_log_duration,
+--     l.p_log_price,
+--     l.p_log_status,
+--     r.court_id,
+--     r.p_reserve_name,
+--     r.p_reserve_phone
+-- FROM PaidCourtUseLog l
+-- INNER JOIN PaidCourtReservation r ON l.p_reserve_id = r.p_reserve_id;
+
+-- Clear all paid use logs
+-- DELETE FROM PaidCourtUseLog;
+
+-- Log ID Format (10 digits):
+-- Position 1-4: Year (YYYY)
+-- Position 5-6: Month (MM)
+-- Position 7-8: Day (DD)
+-- Position 9-10: Sequence number (01-99) of actual uses on that day
+-- Example: 2025051711 = Used on May 17, 2025, 11th use of the day
+
+-- =============================================================================
+-- CourseCourtUseLog (บันทึกการใช้สนามจริง - จากคอร์สเรียน)
+-- =============================================================================
+CREATE TABLE CourseCourtUseLog (
+    c_log_id           TEXT(10) PRIMARY KEY NOT NULL,    -- Log ID (YYYYMMDDXX)
+    c_reserve_id       TEXT(10) NOT NULL,                -- FK to CourseCourtReservation
+    c_checkin_time     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Actual check-in time
+    c_log_duration     REAL NOT NULL,                    -- Actual duration used (hours)
+    c_log_status       TEXT(20) NOT NULL DEFAULT 'completed', -- Status: completed, cancelled, no-show
+    
+    FOREIGN KEY (c_reserve_id) REFERENCES CourseCourtReservation(c_reserve_id) ON DELETE CASCADE
+);
+
+-- Index for performance
+CREATE INDEX IX_CourseCourtUseLog_Reserve ON CourseCourtUseLog(c_reserve_id);
+CREATE INDEX IX_CourseCourtUseLog_CheckIn ON CourseCourtUseLog(c_checkin_time);
+
+-- CRUD Templates for CourseCourtUseLog:
+
+-- Insert (Add course use log)
+-- INSERT INTO CourseCourtUseLog (c_log_id, c_reserve_id, c_checkin_time, c_log_duration, c_log_status)
+-- VALUES (:c_log_id, :c_reserve_id, :c_checkin_time, :c_log_duration, :c_log_status);
+
+-- Update (Edit course use log)
+-- UPDATE CourseCourtUseLog
+-- SET
+--     c_log_duration = :c_log_duration,
+--     c_log_status   = :c_log_status
+-- WHERE c_log_id = :c_log_id;
+
+-- Select (Get all course use logs with details)
+-- SELECT 
+--     l.c_log_id,
+--     l.c_reserve_id,
+--     l.c_checkin_time,
+--     l.c_log_duration,
+--     l.c_log_status,
+--     r.court_id,
+--     r.class_id,
+--     r.c_reserve_name,
+--     co.class_title
+-- FROM CourseCourtUseLog l
+-- INNER JOIN CourseCourtReservation r ON l.c_reserve_id = r.c_reserve_id
+-- INNER JOIN Course co ON r.class_id = co.class_id;
+
+-- Clear all course use logs
+-- DELETE FROM CourseCourtUseLog;

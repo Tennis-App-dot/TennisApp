@@ -48,16 +48,39 @@ public class CourtDao
         
         System.Diagnostics.Debug.WriteLine("✅ สร้างตารางเสร็จ");
 
+        // ✅ เพิ่มสนาม dummy "00" สำหรับการจองที่ยังไม่ได้จัดสรรสนาม (ต้องทำก่อน PaidCourtReservation)
+        System.Diagnostics.Debug.WriteLine("🔍 ตรวจสอบสนาม dummy '00'...");
+        
+        var checkDummyCommand = connection.CreateCommand();
+        checkDummyCommand.CommandText = "SELECT COUNT(*) FROM Court WHERE court_id = '00'";
+        var existsDummy = Convert.ToInt32(checkDummyCommand.ExecuteScalar()) > 0;
+
+        if (!existsDummy)
+        {
+            var insertDummyCommand = connection.CreateCommand();
+            insertDummyCommand.CommandText = @"
+                INSERT INTO Court (court_id, court_img, court_status, last_updated)
+                VALUES ('00', NULL, '0', CURRENT_TIMESTAMP)
+            ";
+            insertDummyCommand.ExecuteNonQuery();
+            
+            System.Diagnostics.Debug.WriteLine("✅ สร้างสนาม dummy '00' สำเร็จ (สถานะ: รอจัดสรรสนาม)");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("✅ สนาม dummy '00' มีอยู่แล้ว");
+        }
+
         // ตรวจสอบข้อมูลปัจจุบัน
         var checkCommand = connection.CreateCommand();
         checkCommand.CommandText = "SELECT COUNT(*) FROM Court";
         var count = Convert.ToInt32(checkCommand.ExecuteScalar());
 
-        System.Diagnostics.Debug.WriteLine($"📊 จำนวนสนามปัจจุบัน: {count}");
+        System.Diagnostics.Debug.WriteLine($"📊 จำนวนสนามปัจจุบัน (รวม dummy): {count}");
     }
 
     /// <summary>
-    /// ดึงข้อมูลสนามทั้งหมด
+    /// ดึงข้อมูลสนามทั้งหมด (ไม่รวมสนาม dummy "00")
     /// </summary>
     public async Task<List<CourtItem>> GetAllCourtsAsync()
     {
@@ -74,6 +97,7 @@ public class CourtDao
         command.CommandText = @"
             SELECT court_id, court_img, court_status, last_updated
             FROM Court
+            WHERE court_id != '00'
             ORDER BY court_id
         ";
 
@@ -102,7 +126,7 @@ public class CourtDao
             System.Diagnostics.Debug.WriteLine($"   ✅ Created CourtItem: {court.DisplayName}, LastUpdated: {court.LastUpdated:yyyy-MM-dd HH:mm:ss}");
         }
 
-        System.Diagnostics.Debug.WriteLine($"📊 GetAllCourtsAsync เสร็จ - พบ {courts.Count} สนาม");
+        System.Diagnostics.Debug.WriteLine($"📊 GetAllCourtsAsync เสร็จ - พบ {courts.Count} สนาม (ไม่รวม dummy)");
         return courts;
     }
 
@@ -120,7 +144,7 @@ public class CourtDao
         command.CommandText = @"
             SELECT court_id, court_img, court_status, last_updated
             FROM Court
-            WHERE court_status = @status
+            WHERE court_status = @status AND court_id != '00'
             ORDER BY court_id
         ";
         command.Parameters.AddWithValue("@status", status);
