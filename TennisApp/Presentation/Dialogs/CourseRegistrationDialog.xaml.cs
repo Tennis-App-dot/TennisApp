@@ -101,8 +101,8 @@ public sealed partial class CourseRegistrationDialog : ContentDialog
             {
                 var item = new ComboBoxItem
                 {
-                    Content = $"{course.ClassId} - {course.ClassTitle}",
-                    Tag = course.ClassId
+                    Content = course.ComboBoxDisplayText,
+                    Tag = course.CompositeKey
                 };
                 CmbCourse.Items.Add(item);
             }
@@ -117,26 +117,29 @@ public sealed partial class CourseRegistrationDialog : ContentDialog
 
     private async void CmbCourse_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbCourse.SelectedItem is ComboBoxItem item && item.Tag is string classId)
+        if (CmbCourse.SelectedItem is ComboBoxItem item && item.Tag is string compositeKey)
         {
             try
             {
-                _selectedCourse = await _viewModel.GetCourseByIdAsync(classId);
+                var key = CourseKey.Parse(compositeKey);
+                if (key != null)
+                {
+                    _selectedCourse = await _viewModel.GetCourseByKeyAsync(key.ClassId, key.TrainerId);
+                }
+                else
+                {
+                    _selectedCourse = null;
+                }
                 
                 if (_selectedCourse != null)
                 {
-                    // Display course details
                     TxtCourseName.Text = _selectedCourse.ClassTitle;
-                    TxtCourseSessions.Text = $"{_selectedCourse.ClassTime} ครั้ง";
+                    TxtCourseSessions.Text = _selectedCourse.SessionCountText;
                     TxtCourseDuration.Text = $"{_selectedCourse.ClassDuration} ชั่วโมง/ครั้ง";
                     TxtCourseFee.Text = $"{_selectedCourse.ClassRate:N0} บาท";
-                    TxtCourseTrainer.Text = string.IsNullOrWhiteSpace(_selectedCourse.TrainerName) 
-                        ? "-" 
-                        : _selectedCourse.TrainerName;
+                    TxtCourseTrainer.Text = _selectedCourse.TrainerDisplayName;
 
                     CourseDetailsPanel.Visibility = Visibility.Visible;
-                    
-                    System.Diagnostics.Debug.WriteLine($"✅ Selected course: {_selectedCourse.ClassTitle}");
                 }
             }
             catch (Exception ex)
@@ -152,100 +155,55 @@ public sealed partial class CourseRegistrationDialog : ContentDialog
 
     private async void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        // Validate course selection
         if (_selectedCourse == null)
         {
             args.Cancel = true;
-            await ShowErrorDialog("กรุณาเลือกคอร์ส");
+            var errorDialog = new ContentDialog
+            {
+                Title = "คำเตือน",
+                Content = "กรุณาเลือกคอร์ส",
+                CloseButtonText = "ตกลง",
+                XamlRoot = this.XamlRoot
+            };
+            await errorDialog.ShowAsync();
             return;
         }
 
-        // Get deferral to perform async work
         var deferral = args.GetDeferral();
 
         try
         {
-            // Register trainee to course
-            var success = await _viewModel.RegisterToCourseAsync(_trainee.TraineeId, _selectedCourse.ClassId);
+            var success = await _viewModel.RegisterToCourseAsync(
+                _trainee.TraineeId, _selectedCourse.ClassId, _selectedCourse.TrainerId);
 
-            if (success)
-            {
-                await ShowSuccessDialog($"สมัครคอร์ส {_selectedCourse.ClassId} สำเร็จ");
-                System.Diagnostics.Debug.WriteLine($"✅ Registration successful: {_trainee.TraineeId} -> {_selectedCourse.ClassId}");
-            }
-            else
+            if (!success)
             {
                 args.Cancel = true;
-                await ShowErrorDialog("ไม่สามารถสมัครคอร์สได้\nผู้เรียนอาจจะสมัครคอร์สนี้แล้ว");
+                var errorDialog = new ContentDialog
+                {
+                    Title = "ไม่สามารถสมัครได้",
+                    Content = "ผู้เรียนอาจจะสมัครคอร์สนี้แล้ว",
+                    CloseButtonText = "ตกลง",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
             }
         }
         catch (Exception ex)
         {
             args.Cancel = true;
-            System.Diagnostics.Debug.WriteLine($"❌ Registration error: {ex.Message}");
-            await ShowErrorDialog($"เกิดข้อผิดพลาด: {ex.Message}");
+            var errorDialog = new ContentDialog
+            {
+                Title = "เกิดข้อผิดพลาด",
+                Content = ex.Message,
+                CloseButtonText = "ตกลง",
+                XamlRoot = this.XamlRoot
+            };
+            await errorDialog.ShowAsync();
         }
         finally
         {
             deferral.Complete();
         }
-    }
-
-    private async System.Threading.Tasks.Task ShowErrorDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
-    }
-
-    private async System.Threading.Tasks.Task ShowSuccessDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "สำเร็จ",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
     }
 }

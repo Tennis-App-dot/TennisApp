@@ -7,333 +7,248 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Background="#F5F5F5">
+    Background="#F2F4F7">
 
-    <Grid x:Name="RootGrid" Padding="20,20">
+    <Grid x:Name="RootGrid" Padding="16,14">
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="WindowSizeStates">
+                <VisualState x:Name="NarrowState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.Padding" Value="12,10"/>
+                        <Setter Target="HeaderTitle.FontSize" Value="22"/>
+                        <Setter Target="AddButton.Height" Value="44"/>
+                        <Setter Target="AddButton.Padding" Value="16,0"/>
+                        <Setter Target="AddButtonText.FontSize" Value="14"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="600"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.Padding" Value="24,18"/>
+                        <Setter Target="HeaderTitle.FontSize" Value="26"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Visual State Manager for Responsive Design -->
-        <VisualStateManager.VisualStateGroups>
-            <VisualStateGroup x:Name="WindowSizeStates">
-                <!-- Narrow (Phone/Small Tablet Portrait - < 720px) -->
-                <VisualState x:Name="NarrowState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="0"/>
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="RootGrid.Padding" Value="16,16"/>
-                        <Setter Target="HeaderText.FontSize" Value="24"/>
-                        <Setter Target="SearchGrid.Margin" Value="0,0,0,16"/>
-                        <Setter Target="FilterComboBox.Width" Value="Auto"/>
-                        <Setter Target="SearchTextBox.Width" Value="*"/>
-                        <Setter Target="AddButton.Padding" Value="16,10"/>
-                        <Setter Target="AddButton.FontSize" Value="14"/>
-                        
-                        <!-- Hide some columns on narrow screens -->
-                        <Setter Target="ColHeaderID.Width" Value="120"/>
-                        <Setter Target="ColHeaderFirstName.Width" Value="100"/>
-                        <Setter Target="ColHeaderLastName.Width" Value="0"/>
-                        <Setter Target="ColHeaderPhone.Width" Value="130"/>
-                        <Setter Target="ColHeaderEdit.Width" Value="60"/>
-                        <Setter Target="ColHeaderDelete.Width" Value="60"/>
-                    </VisualState.Setters>
-                </VisualState>
-
-                <!-- Medium (Tablet - 720px to 1024px) -->
-                <VisualState x:Name="MediumState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="720"/>
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="RootGrid.Padding" Value="24,20"/>
-                        <Setter Target="HeaderText.FontSize" Value="28"/>
-                        <Setter Target="ColHeaderID.Width" Value="1.5*"/>
-                        <Setter Target="ColHeaderFirstName.Width" Value="1.5*"/>
-                        <Setter Target="ColHeaderLastName.Width" Value="2*"/>
-                        <Setter Target="ColHeaderPhone.Width" Value="1.5*"/>
-                        <Setter Target="ColHeaderEdit.Width" Value="*"/>
-                        <Setter Target="ColHeaderDelete.Width" Value="*"/>
-                    </VisualState.Setters>
-                </VisualState>
-
-                <!-- Wide (Desktop/Large Tablet - > 1024px) -->
-                <VisualState x:Name="WideState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="1024"/>
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="RootGrid.Padding" Value="40,20"/>
-                        <Setter Target="HeaderText.FontSize" Value="32"/>
-                        <Setter Target="ColHeaderID.Width" Value="1.5*"/>
-                        <Setter Target="ColHeaderFirstName.Width" Value="1.5*"/>
-                        <Setter Target="ColHeaderLastName.Width" Value="2*"/>
-                        <Setter Target="ColHeaderPhone.Width" Value="1.5*"/>
-                        <Setter Target="ColHeaderEdit.Width" Value="*"/>
-                        <Setter Target="ColHeaderDelete.Width" Value="*"/>
-                    </VisualState.Setters>
-                </VisualState>
-            </VisualStateGroup>
-        </VisualStateManager.VisualStateGroups>
-
-        <!-- Header -->
-        <TextBlock x:Name="HeaderText"
-                   Grid.Row="0" 
-                   Text="ผู้เรียน" 
-                   FontSize="32" 
-                   FontWeight="Bold"
-                   Margin="0,0,0,24"
-                   VerticalAlignment="Center"/>
-
-        <!-- Search Bar with Add Button -->
-        <Grid x:Name="SearchGrid" 
-              Grid.Row="1" 
-              Margin="0,0,0,20">
+        <!-- ── Header ─────────────────────────────────────── -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" MinWidth="150"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Filter Dropdown -->
-            <ComboBox x:Name="FilterComboBox"
-                      Grid.Column="0"
-                      ItemsSource="{x:Bind ViewModel.SearchFields, Mode=OneTime}"
-                      SelectedItem="{x:Bind ViewModel.SelectedSearchField, Mode=TwoWay}"
-                      PlaceholderText="ค้นหาจาก"
-                      Background="White"
-                      Height="45"
-                      MinWidth="150"
-                      Margin="0,0,20,0"
-                      VerticalAlignment="Center"/>
+            <TextBlock x:Name="HeaderTitle"
+                       Text="จัดการทะเบียนผู้เรียน"
+                       FontSize="26" FontWeight="ExtraBold"
+                       Foreground="#1A1A2E"
+                       VerticalAlignment="Center"/>
 
-            <!-- Search TextBox with Button -->
-            <Grid Grid.Column="1" Margin="0,0,20,0" ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <TextBox x:Name="SearchTextBox"
-                         Grid.Column="0"
-                         Text="{x:Bind ViewModel.SearchKeyword, Mode=TwoWay}"
-                         PlaceholderText="ค้นหา..."
-                         Background="White"
-                         Height="45"
-                         VerticalContentAlignment="Center"
-                         FontSize="16"
-                         BorderThickness="1"
-                         BorderBrush="#E0E0E0"
-                         CornerRadius="4"
-                         KeyDown="SearchTextBox_KeyDown"/>
-
-                <Button Grid.Column="1"
-                        Command="{x:Bind ViewModel.SearchCommand}"
-                        Background="White"
-                        BorderBrush="#E0E0E0"
-                        BorderThickness="1"
-                        Height="45"
-                        Width="50"
-                        CornerRadius="4"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center">
-                    <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="#666666"/>
-                </Button>
-            </Grid>
-
-            <!-- Add Button -->
-            <Button x:Name="AddButton"
-                    Grid.Column="2"
-                    Content="สร้างทะเบียนประวัติ"
-                    Background="#4A148C"
-                    Foreground="White"
-                    FontSize="16"
-                    Height="45"
-                    Padding="24,10"
-                    CornerRadius="4"
-                    Click="BtnAddTrainee_Click"/>
+            <Button x:Name="AddButton" Grid.Column="1"
+                    Click="BtnAddTrainee_Click"
+                    Background="#6C2BD9" Foreground="White"
+                    Height="52" FontSize="16" FontWeight="Bold"
+                    Padding="28,0" CornerRadius="14"
+                    BorderThickness="0">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <FontIcon Glyph="&#xE710;" FontSize="18"/>
+                    <TextBlock x:Name="AddButtonText"
+                               Text="เพิ่มผู้เรียน" VerticalAlignment="Center"
+                               FontSize="16" FontWeight="Bold"/>
+                </StackPanel>
+            </Button>
         </Grid>
 
-        <!-- Data Table with Responsive Columns -->
-        <Border Grid.Row="2" 
-                Background="White" 
-                CornerRadius="8"
-                BorderBrush="#E0E0E0"
-                BorderThickness="1">
-            
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <!-- ── Search Bar ─────────────────────────────────── -->
+        <Grid Grid.Row="1" ColumnSpacing="8" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-                <!-- Table Header -->
-                <Grid x:Name="TableHeader"
-                      Grid.Row="0" 
-                      Background="#00E676" 
-                      MinHeight="50"
-                      Padding="16,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="ColHeaderID" Width="1.5*"/>
-                        <ColumnDefinition x:Name="ColHeaderFirstName" Width="1.5*"/>
-                        <ColumnDefinition x:Name="ColHeaderLastName" Width="2*"/>
-                        <ColumnDefinition x:Name="ColHeaderPhone" Width="1.5*"/>
-                        <ColumnDefinition x:Name="ColHeaderEdit" Width="*" MinWidth="60"/>
-                        <ColumnDefinition x:Name="ColHeaderDelete" Width="*" MinWidth="60"/>
-                    </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchTextBox"
+                     Grid.Column="0"
+                     Text="{x:Bind ViewModel.SearchKeyword, Mode=TwoWay}"
+                     PlaceholderText="ค้นหาชื่อ, รหัส, เบอร์โทร..."
+                     Background="White"
+                     Height="44"
+                     VerticalContentAlignment="Center"
+                     FontSize="15"
+                     BorderThickness="1"
+                     BorderBrush="#E5E7EB"
+                     CornerRadius="10"
+                     KeyDown="SearchTextBox_KeyDown"/>
 
-                    <TextBlock Grid.Column="0" 
-                               Text="รหัสประจำตัวผู้เรียน" 
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center"
-                               Margin="0,8"/>
-                    
-                    <TextBlock Grid.Column="1" 
-                               Text="ชื่อ" 
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="2" 
-                               Text="นามสกุล" 
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="3" 
-                               Text="เบอร์โทรศัพท์" 
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap"
-                               VerticalAlignment="Center"
-                               Margin="0,8"/>
-                    
-                    <TextBlock Grid.Column="4" 
-                               Text="แก้ไข" 
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                    
-                    <TextBlock Grid.Column="5" 
-                               Text="ลบ" 
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                </Grid>
+            <Button Grid.Column="1"
+                    Command="{x:Bind ViewModel.SearchCommand}"
+                    Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    Height="44" Width="48"
+                    CornerRadius="10">
+                <FontIcon Glyph="&#xE721;" FontSize="18" Foreground="#6B7280"/>
+            </Button>
+        </Grid>
 
-                <!-- Table Body with ListView -->
-                <Grid Grid.Row="1">
-                    <!-- Loading Indicator -->
-                    <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
-                                  Width="50"
-                                  Height="50"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"
-                                  Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"/>
+        <!-- ── Trainee Card List ──────────────────────────── -->
+        <Grid Grid.Row="2">
+            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                          Width="50" Height="50"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"/>
 
-                    <!-- No Results Message -->
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="12"
-                                Visibility="{x:Bind ViewModel.HasNoResults, Mode=OneWay}">
-                        <FontIcon Glyph="&#xE11A;" FontSize="48" Foreground="#999"/>
-                        <TextBlock Text="ไม่พบข้อมูล"
-                                   FontSize="18"
-                                   Foreground="#666"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12"
+                        Visibility="{x:Bind ViewModel.HasNoResults, Mode=OneWay}">
+                <FontIcon Glyph="&#xE77B;" FontSize="64" Foreground="#D1D5DB"/>
+                <TextBlock Text="ยังไม่มีข้อมูลผู้เรียน"
+                           FontSize="18" Foreground="#9CA3AF"
+                           HorizontalAlignment="Center" FontWeight="Medium"/>
+                <TextBlock Text="กดปุ่ม &quot;เพิ่มผู้เรียน&quot; เพื่อเริ่มต้น"
+                           FontSize="14" Foreground="#D1D5DB"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
 
-                    <!-- Data List -->
-                    <ListView x:Name="TraineesListView"
-                              ItemsSource="{x:Bind ViewModel.Trainees, Mode=OneWay}"
-                              SelectionMode="None"
-                              Visibility="{x:Bind ViewModel.HasNoResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Margin" Value="0"/>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid MinHeight="50" 
-                                      Padding="16,8" 
-                                      Background="White"
-                                      Tapped="TraineeRow_Tapped">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1.5*"/>
-                                        <ColumnDefinition Width="1.5*"/>
-                                        <ColumnDefinition Width="2*"/>
-                                        <ColumnDefinition Width="1.5*"/>
-                                        <ColumnDefinition Width="*" MinWidth="60"/>
-                                        <ColumnDefinition Width="*" MinWidth="60"/>
-                                    </Grid.ColumnDefinitions>
+            <ListView x:Name="TraineesListView"
+                      ItemsSource="{x:Bind ViewModel.Trainees, Mode=OneWay}"
+                      SelectionMode="None"
+                      Visibility="{x:Bind ViewModel.HasNoResults, Mode=OneWay, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,0,0,12"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="White"
+                                CornerRadius="14"
+                                Padding="0"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                MinHeight="100"
+                                Tapped="TraineeRow_Tapped">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Column="0" 
-                                               Text="{Binding TraineeId}"
+                                <Border Grid.Column="0"
+                                        Width="90" Height="90"
+                                        CornerRadius="45"
+                                        Background="#E8EAF6"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Center">
+                                    <Grid>
+                                        <FontIcon Glyph="&#xE77B;" FontSize="36"
+                                                  Foreground="#9CA3AF"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                        <Image Source="{Binding ImageSource}"
+                                               Stretch="UniformToFill"
+                                               HorizontalAlignment="Center"
                                                VerticalAlignment="Center"/>
-                                    
-                                    <TextBlock Grid.Column="1" 
-                                               Text="{Binding FirstName}"
-                                               VerticalAlignment="Center"/>
-                                    
-                                    <TextBlock Grid.Column="2" 
-                                               Text="{Binding LastName}"
-                                               VerticalAlignment="Center"/>
-                                    
-                                    <TextBlock Grid.Column="3" 
-                                               Text="{Binding Phone}"
-                                               VerticalAlignment="Center"/>
-                                    
-                                    <Button Grid.Column="4" 
-                                            Background="Transparent"
-                                            HorizontalAlignment="Center"
+                                    </Grid>
+                                </Border>
+
+                                <StackPanel Grid.Column="1"
+                                            Spacing="4"
+                                            Padding="16,14"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FullName}"
+                                               FontSize="17" FontWeight="Bold"
+                                               Foreground="#1A1A2E"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Nickname}"
+                                                   FontSize="14" Foreground="#6B7280"
+                                                   Visibility="{Binding HasNickname, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE717;" FontSize="13" Foreground="#9CA3AF"/>
+                                        <TextBlock Text="{Binding Phone}"
+                                                   FontSize="14" Foreground="#6B7280"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding TraineeId}"
+                                               FontSize="12" Foreground="#9CA3AF"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            Spacing="8"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,12,0">
+                                    <Button Background="#EEF2FF"
+                                            Foreground="#6C2BD9"
+                                            CornerRadius="12"
+                                            Width="44" Height="44"
+                                            Padding="0"
+                                            BorderThickness="0"
                                             Click="BtnEditTrainee_Click"
                                             Tapped="Button_Tapped"
-                                            Tag="{Binding TraineeId}">
-                                        <FontIcon Glyph="&#xE70F;" Foreground="#FFA726" FontSize="18"/>
+                                            Tag="{Binding TraineeId}"
+                                            ToolTipService.ToolTip="แก้ไข">
+                                        <FontIcon Glyph="&#xE70F;" FontSize="16"/>
                                     </Button>
-                                    
-                                    <Button Grid.Column="5" 
-                                            Background="Transparent"
-                                            HorizontalAlignment="Center"
+                                    <Button Background="#FEF2F2"
+                                            Foreground="#DC2626"
+                                            CornerRadius="12"
+                                            Width="44" Height="44"
+                                            Padding="0"
+                                            BorderThickness="0"
                                             Click="BtnDeleteTrainee_Click"
                                             Tapped="Button_Tapped"
-                                            Tag="{Binding TraineeId}">
-                                        <FontIcon Glyph="&#xE74D;" Foreground="#EF5350" FontSize="18"/>
+                                            Tag="{Binding TraineeId}"
+                                            ToolTipService.ToolTip="ลบ">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="16"/>
                                     </Button>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
 
-                <!-- Load More Button -->
-                <Button Grid.Row="2"
-                        Command="{x:Bind ViewModel.LoadMoreCommand}"
-                        Content="โหลดเพิ่มเติม..."
-                        HorizontalAlignment="Center"
-                        Margin="0,16"
-                        Padding="32,12"
-                        Background="#4A148C"
-                        Foreground="White"
-                        CornerRadius="4"
-                        Visibility="{x:Bind ViewModel.HasMoreData, Mode=OneWay}"/>
-            </Grid>
-        </Border>
+                <ListView.Footer>
+                    <Button Command="{Binding DataContext.LoadMoreCommand, ElementName=TraineesListView}"
+                            Content="โหลดเพิ่มเติม..."
+                            HorizontalAlignment="Center"
+                            Margin="0,8,0,16"
+                            Padding="32,12"
+                            Height="48"
+                            Background="#6C2BD9" Foreground="White"
+                            CornerRadius="12"
+                            Visibility="{x:Bind ViewModel.HasMoreData, Mode=OneWay}"/>
+                </ListView.Footer>
+            </ListView>
+        </Grid>
 
         <!-- Detail Card Overlay -->
-        <Grid x:Name="DetailOverlay" 
+        <Grid x:Name="DetailOverlay"
               Grid.RowSpan="3"
-              Background="Transparent"
+              Background="#80000000"
               Visibility="Collapsed"
               Tapped="DetailOverlay_Tapped">
             <dialogs:TraineeDetailCard x:Name="DetailCard"
                                        HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center"
+                                       Tapped="DetailCard_Tapped"/>
         </Grid>
     </Grid>
 </Page>

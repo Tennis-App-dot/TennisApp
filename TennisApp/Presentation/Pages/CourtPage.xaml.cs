@@ -1,406 +1,328 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Text;
+using Microsoft.UI.Xaml.Media;
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using TennisApp.Models;
 using TennisApp.Presentation.Dialogs;
 using TennisApp.Presentation.ViewModels;
-using Microsoft.UI.Xaml;
+using TennisApp.Services;
 
 namespace TennisApp.Presentation.Pages;
 
 public sealed partial class CourtPage : Page
 {
     public CourtPageViewModel VM { get; } = new();
+    private NotificationService? _notify;
+    private string _currentFilter = "all";
 
     public CourtPage()
     {
-        System.Diagnostics.Debug.WriteLine("CourtPage constructor - เริ่มสร้าง CourtPage");
-        
         InitializeComponent();
         DataContext = VM;
-        
-        System.Diagnostics.Debug.WriteLine("CourtPage InitializeComponent เสร็จ");
-        System.Diagnostics.Debug.WriteLine($"DataContext set to VM: {VM != null}");
-        
-        // 🆕 โหลดข้อมูลจาก Database หลัง UI พร้อม
         this.Loaded += CourtPage_Loaded;
-        
-        System.Diagnostics.Debug.WriteLine("CourtPage constructor เสร็จสมบูรณ์");
     }
 
-    /// <summary>
-    /// โหลดข้อมูลจาก Database เมื่อ Page พร้อม
-    /// </summary>
     private async void CourtPage_Loaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("CourtPage Loaded - เริ่มโหลดข้อมูลจาก Database");
-        
+        _notify = NotificationService.GetFromPage(this);
+
 #if DEBUG
-        // แสดง Debug panel เฉพาะใน Debug build
         if (FindName("DebugPanel") is StackPanel debugPanel)
-        {
             debugPanel.Visibility = Visibility.Visible;
-        }
 #else
-        // ซ่อน Debug panel ใน Release build
         if (FindName("DebugPanel") is StackPanel debugPanel)
-        {
             debugPanel.Visibility = Visibility.Collapsed;
-        }
 #endif
-        
+
+        UpdateFilterVisuals();
+
         try
         {
-            // โหลดข้อมูลจาก Database จริง
             await VM.LoadCourtsAsync();
-            
-            System.Diagnostics.Debug.WriteLine($"โหลดเสร็จ - แสดง {VM.Courts.Count} สนาม");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"โหลดข้อมูลล้มเหลว: {ex.Message}");
-            
-            // แสดงข้อผิดพลาดให้ผู้ใช้
-            await ShowMessage("เกิดข้อผิดพลาด", $"ไม่สามารถโหลดข้อมูลสนามได้: {ex.Message}");
+            _notify?.ShowError($"ไม่สามารถโหลดข้อมูลสนามได้: {ex.Message}");
         }
     }
 
-    // จัดการเหตุการณ์ Radio Button เปลี่ยนแปลง
-    private void FilterRadio_Checked(object sender, RoutedEventArgs e)
+    // ═══════════════════════════════════════════════════════════
+    // Filter (Border + Button approach — สีขึ้นชัวร์ 100%)
+    // ═══════════════════════════════════════════════════════════
+
+    private void FilterButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not RadioButton radio) return;
-
-        string filterType = radio.Name switch
-        {
-            "RadioAll" => "all",
-            "RadioActive" => "active", 
-            "RadioMaintenance" => "maintenance",
-            _ => "all"
-        };
-
-        // ใช้ async version
-        _ = VM.ApplyFilterAsync(filterType);
+        if (sender is not Button btn) return;
+        _currentFilter = btn.Tag?.ToString() ?? "all";
+        UpdateFilterVisuals();
+        _ = VM.ApplyFilterAsync(_currentFilter);
     }
 
-    // เพิ่มสนามใหม่
+    private void UpdateFilterVisuals()
+    {
+        // สี active: ทั้งหมด=ม่วง, พร้อมใช้งาน=เขียว, ปิดปรับปรุง=แดง
+        var filters = new[]
+        {
+            (BorderName: "FilterAllBorder",         ButtonName: "FilterAll",         Tag: "all",         R: (byte)108, G: (byte)43,  B: (byte)217), // ม่วง
+            (BorderName: "FilterActiveBorder",      ButtonName: "FilterActive",      Tag: "active",      R: (byte)22,  G: (byte)163, B: (byte)74),  // เขียว
+            (BorderName: "FilterMaintenanceBorder", ButtonName: "FilterMaintenance", Tag: "maintenance", R: (byte)220, G: (byte)38,  B: (byte)38),  // แดง
+        };
+
+        foreach (var (borderName, buttonName, tag, r, g, b) in filters)
+        {
+            var border = FindName(borderName) as Border;
+            var button = FindName(buttonName) as Button;
+            if (border == null || button == null) continue;
+
+            if (_currentFilter == tag)
+            {
+                border.Background = new SolidColorBrush(
+                    Microsoft.UI.ColorHelper.FromArgb(255, r, g, b));
+                button.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
+            }
+            else
+            {
+                border.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                button.Foreground = new SolidColorBrush(
+                    Microsoft.UI.ColorHelper.FromArgb(255, 107, 114, 128)); // #6B7280
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // CRUD
+    // ═══════════════════════════════════════════════════════════
+
     private async void BtnAdd_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("BtnAdd_Click เริ่มทำงาน");
-            
             var result = await VM.GetNextCourtIdAsync();
             if (!result.success)
             {
-                await ShowMessage("ครบจำนวนสูงสุด", "มีสนามครบ 99 สนามแล้ว ไม่สามารถเพิ่มได้");
+                _notify?.ShowWarning("มีสนามครบ 99 สนามแล้ว ไม่สามารถเพิ่มได้");
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine($"Next Court ID: {result.nextId}");
-
-            // สร้าง CourtItem ใหม่โดยไม่กำหนด CourtID เพื่อให้ระบบรู้ว่าเป็นโหมดเพิ่ม
             var seed = new CourtItem { Status = "1", LastUpdated = DateTime.Today };
             var dlg = new CourtFormDialog(seed) { XamlRoot = this.XamlRoot };
 
-            System.Diagnostics.Debug.WriteLine("เปิด CourtFormDialog");
-
             await dlg.ShowAsync();
-            
-            // ✅ ใช้ WasSaved แทน ContentDialogResult.Primary
+
             if (dlg.WasSaved)
             {
                 var item = dlg.Result;
-                
-                System.Diagnostics.Debug.WriteLine($"User กด Save - Status: {item.Status}, LastUpdated: {item.LastUpdated}");
-                
-                // บันทึกลง database
                 var success = await VM.AddCourtAsync(item);
-                
-                System.Diagnostics.Debug.WriteLine($"AddCourtAsync result: {success}");
-                
+
                 if (!success)
                 {
-                    await ShowMessage("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกข้อมูลสนามได้");
+                    _notify?.ShowError("ไม่สามารถบันทึกข้อมูลสนามได้");
                     return;
                 }
-                
-                // รีเฟรชตัวกรองเพื่อให้แสดงผลถูกต้อง
+
                 await RefreshCurrentFilterAsync();
-                
-                System.Diagnostics.Debug.WriteLine("RefreshCurrentFilterAsync เสร็จ");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("User กด Cancel");
+                _notify?.ShowSuccess("เพิ่มสนามใหม่เรียบร้อยแล้ว");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"BtnAdd_Click Error: {ex.Message}");
-            await ShowMessage("เกิดข้อผิดพลาด", $"ไม่สามารถเพิ่มสนามได้: {ex.Message}");
+            _notify?.ShowError($"ไม่สามารถเพิ่มสนามได้: {ex.Message}");
         }
     }
 
-    // แก้ไขสนาม
     private async void BtnEdit_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not CourtItem target) return;
-        
+
         try
         {
             var copy = target.Clone();
             var dlg = new CourtFormDialog(copy) { XamlRoot = this.XamlRoot };
 
             await dlg.ShowAsync();
-            
-            // ✅ ใช้ WasSaved แทน ContentDialogResult.Primary
+
             if (dlg.WasSaved)
             {
                 var edited = dlg.Result;
-                
-                // อัปเดตลง database
                 var success = await VM.UpdateCourtAsync(edited);
-                
+
                 if (!success)
                 {
-                    await ShowMessage("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกการแก้ไขได้");
+                    _notify?.ShowError("ไม่สามารถบันทึกการแก้ไขได้");
                     return;
                 }
-                
-                // รีเฟรชตัวกรองเพื่อให้แสดงผลถูกต้อง
+
                 await RefreshCurrentFilterAsync();
+                _notify?.ShowSuccess("แก้ไขข้อมูลสนามเรียบร้อยแล้ว");
             }
         }
         catch (Exception ex)
         {
-            await ShowMessage("เกิดข้อผิดพลาด", $"ไม่สามารถแก้ไขสนามได้: {ex.Message}");
+            _notify?.ShowError($"ไม่สามารถแก้ไขสนามได้: {ex.Message}");
         }
     }
 
-    // ลบสนาม
     private async void BtnDelete_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not CourtItem target) return;
 
         try
         {
-            bool confirmed = await ShowConfirm(
-                "Confirm Delete!!!!",
-                $"ต้องการลบสนาม {target.DisplayName} ใช่หรือไม่?"
-            );
+            bool confirmed = false;
+            if (_notify != null)
+            {
+                confirmed = await _notify.ShowDeleteConfirmAsync(target.DisplayName, this.XamlRoot!);
+            }
+            else
+            {
+                confirmed = await NotificationService.ConfirmAsync(
+                    "ยืนยันการลบ",
+                    $"ต้องการลบสนาม {target.DisplayName} ใช่หรือไม่?",
+                    this.XamlRoot!);
+            }
 
             if (confirmed)
             {
                 var success = await VM.RemoveCourtAsync(target);
-                
+
                 if (!success)
                 {
-                    await ShowMessage("เกิดข้อผิดพลาด", "ไม่สามารถลบสนามได้");
+                    _notify?.ShowError("ไม่สามารถลบสนามได้");
                     return;
                 }
-                
-                // รีเฟรชตัวกรองเพื่อให้แสดงผลถูกต้อง
+
                 await RefreshCurrentFilterAsync();
+                _notify?.ShowSuccess($"ลบ{target.DisplayName}เรียบร้อยแล้ว");
             }
         }
         catch (Exception ex)
         {
-            await ShowMessage("เกิดข้อผิดพลาด", $"ไม่สามารถลบสนามได้: {ex.Message}");
+            _notify?.ShowError($"ไม่สามารถลบสนามได้: {ex.Message}");
         }
     }
 
-    // รีเฟรชตัวกรองปัจจุบัน (Async version)
     private async Task RefreshCurrentFilterAsync()
     {
-        string currentFilter = "all";
-        
-        try
-        {
-            var radioActive = FindName("RadioActive") as RadioButton;
-            var radioMaintenance = FindName("RadioMaintenance") as RadioButton;
-            
-            if (radioActive?.IsChecked == true) 
-                currentFilter = "active";
-            else if (radioMaintenance?.IsChecked == true) 
-                currentFilter = "maintenance";
-            else
-                currentFilter = "all";
-        }
-        catch
-        {
-            currentFilter = "all";
-        }
-        
-        await VM.ApplyFilterAsync(currentFilter);
-    }
-
-    /// <summary>
-    /// Gets Thai font with fallback to system font if font file is missing
-    /// </summary>
-    private Microsoft.UI.Xaml.Media.FontFamily GetThaiFont()
-    {
-        try
-        {
-            // Try to use the custom Thai font
-            return new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai");
-        }
-        catch
-        {
-            // Fallback to system font that supports Thai
-            return new Microsoft.UI.Xaml.Media.FontFamily("Segoe UI");
-        }
-    }
-
-    /// <summary>
-    /// Shows a message dialog with Thai font support
-    /// </summary>
-    private async Task ShowMessage(string title, string content)
-    {
-        var dlg = new ContentDialog
-        {
-            Title = title,
-            Content = content,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot
-        };
-
-        // Apply Thai font from application resources
-        if (Application.Current?.Resources != null)
-        {
-            if (Application.Current.Resources.TryGetValue("ThaiFontFamily", out var fontResource))
-            {
-                dlg.FontFamily = fontResource as Microsoft.UI.Xaml.Media.FontFamily;
-            }
-        }
-
-        await dlg.ShowAsync();
-    }
-
-    /// <summary>
-    /// Shows a confirmation dialog with Thai font support
-    /// </summary>
-    private async Task<bool> ShowConfirm(string title, string content)
-    {
-        var dlg = new ContentDialog
-        {
-            Title = title,
-            Content = content,
-            PrimaryButtonText = "ใช่",
-            CloseButtonText = "ไม่",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
-        };
-
-        // Apply Thai font from application resources
-        if (Application.Current?.Resources != null)
-        {
-            if (Application.Current.Resources.TryGetValue("ThaiFontFamily", out var fontResource))
-            {
-                dlg.FontFamily = fontResource as Microsoft.UI.Xaml.Media.FontFamily;
-            }
-        }
-
-        var result = await dlg.ShowAsync();
-        return result == ContentDialogResult.Primary;
+        await VM.ApplyFilterAsync(_currentFilter);
     }
 
 #if DEBUG
-    // Debug function for testing Database
     private async void BtnDebugTest_Click(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("Starting Database Debug test...");
-        
         try
         {
-            var databaseService = new TennisApp.Services.DatabaseService();
+            var databaseService = ((App)Application.Current).DatabaseService;
+            databaseService.EnsureInitialized();
             var courts = await databaseService.Courts.GetAllCourtsAsync();
-            
-            System.Diagnostics.Debug.WriteLine($"Successfully loaded {courts.Count} courts");
-            
-            // Refresh UI
             await VM.LoadCourtsAsync();
-            
-            await ShowMessage("Success", $"Database working normally\nFound {courts.Count} courts");
+            _notify?.ShowInfo($"Database OK — พบ {courts.Count} สนาม");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Test failed: {ex.Message}");
-            await ShowMessage("Error", $"Test failed: {ex.Message}");
+            _notify?.ShowError($"Test failed: {ex.Message}");
         }
     }
-    
-    // Reset Database for Debug
+
     private async void BtnResetDatabase_Click(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("Reset Database starting...");
-        
         try
         {
-            bool confirmed = await ShowConfirm(
-                "ยืนยันการรีเซ็ต",
-                "คุณต้องการลบข้อมูลทั้งหมดในฐานข้อมูลใช่หรือไม่?\n(โครงสร้างฐานข้อมูลจะยังคงอยู่)"
-            );
-
-            if (!confirmed)
+            bool confirmed = false;
+            if (_notify != null)
             {
-                System.Diagnostics.Debug.WriteLine("User cancelled reset");
-                return;
+                confirmed = await _notify.ShowConfirmAsync(
+                    "ยืนยันการรีเซ็ต",
+                    "คุณต้องการลบฐานข้อมูลทั้งหมดแล้วสร้างใหม่เปล่าๆ ใช่หรือไม่?\n\n⚠️ ข้อมูลทั้งหมดจะหายไป",
+                    this.XamlRoot!);
+            }
+            else
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "ยืนยันการรีเซ็ต",
+                    Content = "คุณต้องการลบฐานข้อมูลทั้งหมดแล้วสร้างใหม่เปล่าๆ ใช่หรือไม่?\n\n⚠️ ข้อมูลทั้งหมดจะหายไป",
+                    PrimaryButtonText = "ใช่",
+                    CloseButtonText = "ไม่",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot
+                };
+                confirmed = await dialog.ShowAsync() == ContentDialogResult.Primary;
             }
 
-            var databaseService = new TennisApp.Services.DatabaseService();
-            
-            // ✅ ใช้ method ใหม่ที่ลบข้อมูลทั้งหมด
-            await databaseService.ClearAllDataAsync();
-            
-            // Refresh UI
+            if (!confirmed) return;
+
+            var databaseService = ((App)Application.Current).DatabaseService;
+            await databaseService.ResetDatabaseAsync();
             await VM.LoadCourtsAsync();
-            
-            System.Diagnostics.Debug.WriteLine("Reset Database completed");
-            await ShowMessage("สำเร็จ", "ลบข้อมูลทั้งหมดในฐานข้อมูลเรียบร้อยแล้ว");
+            _notify?.ShowSuccess("รีเซ็ตฐานข้อมูลเรียบร้อยแล้ว (เริ่มจากฐานข้อมูลเปล่า)");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Reset Database failed: {ex.Message}");
-            await ShowMessage("ข้อผิดพลาด", $"ไม่สามารถรีเซ็ตฐานข้อมูลได้: {ex.Message}");
+            _notify?.ShowError($"ไม่สามารถรีเซ็ตฐานข้อมูลได้: {ex.Message}");
         }
     }
-    
-    // ตรวจสอบสถานะ Database
+
     private async void BtnCheckDatabase_Click(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("Checking Database status...");
-        
         try
         {
-            var databaseService = new TennisApp.Services.DatabaseService();
-            var dbPath = databaseService.GetDatabasePath();
-            var isReady = databaseService.IsDatabaseReady();
-
-            // Get all table names and row counts
+            var databaseService = ((App)Application.Current).DatabaseService;
+            databaseService.EnsureInitialized();
             var tables = await databaseService.GetAllTableNamesAsync();
             var rowCounts = await databaseService.GetTableRowCountsAsync();
 
-            var message = $"Database Path:\n{dbPath}\n\n" +
-                         $"Database Ready: {isReady}\n\n" +
-                         $"Tables Found: {tables.Count}\n\n";
-
+            var message = $"Tables: {tables.Count}\n";
             foreach (var table in tables)
             {
                 var count = rowCounts.ContainsKey(table) ? rowCounts[table] : 0;
                 message += $"• {table}: {count} rows\n";
             }
-            
-            System.Diagnostics.Debug.WriteLine($"Database Info:\n{message}");
-            await ShowMessage("Database Status", message);
+
+            _notify?.ShowInfo(message, "Database Status");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Check Database failed: {ex.Message}");
-            await ShowMessage("ข้อผิดพลาด", $"ไม่สามารถตรวจสอบฐานข้อมูลได้: {ex.Message}");
+            _notify?.ShowError($"ไม่สามารถตรวจสอบฐานข้อมูลได้: {ex.Message}");
+        }
+    }
+
+    private async void BtnClearData_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            bool confirmed = false;
+            if (_notify != null)
+            {
+                confirmed = await _notify.ShowConfirmAsync(
+                    "ล้างข้อมูลทั้งหมด",
+                    "ต้องการลบข้อมูลทั้งหมดในฐานข้อมูลใช่หรือไม่?\n\n⚠️ ข้อมูลทั้งหมดจะหายไป",
+                    this.XamlRoot!);
+            }
+            else
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "ล้างข้อมูลทั้งหมด",
+                    Content = "ต้องการลบข้อมูลทั้งหมดในฐานข้อมูลใช่หรือไม่?\n\n⚠️ ข้อมูลทั้งหมดจะหายไป",
+                    PrimaryButtonText = "ใช่",
+                    CloseButtonText = "ไม่",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot
+                };
+                confirmed = await dialog.ShowAsync() == ContentDialogResult.Primary;
+            }
+
+            if (!confirmed) return;
+
+            var databaseService = ((App)Application.Current).DatabaseService;
+            await databaseService.ClearAllDataAsync();
+            await VM.LoadCourtsAsync();
+            _notify?.ShowSuccess("ล้างข้อมูลทั้งหมดเรียบร้อยแล้ว");
+        }
+        catch (Exception ex)
+        {
+            _notify?.ShowError($"ไม่สามารถล้างข้อมูลได้: {ex.Message}");
         }
     }
 #endif

@@ -12,6 +12,7 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
 {
     private string _traineeId = string.Empty;
     private string _classId = string.Empty;
+    private string _trainerId = string.Empty;
     private DateTime _regisDate = DateTime.Now;
     
     // Display properties (from JOINs)
@@ -42,7 +43,7 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// class_id: FK to Class/Course (PK, FK2)
+    /// class_id: FK to Course (PK, FK2) — part of composite FK (class_id, trainer_id)
     /// </summary>
     public string ClassId
     {
@@ -52,6 +53,22 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
             if (_classId != value)
             {
                 _classId = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// trainer_id: FK to Course (FK3) — part of composite FK (class_id, trainer_id)
+    /// </summary>
+    public string TrainerId
+    {
+        get => _trainerId;
+        set
+        {
+            if (_trainerId != value)
+            {
+                _trainerId = value;
                 OnPropertyChanged();
             }
         }
@@ -197,12 +214,14 @@ public class ClassRegisRecordItem : INotifyPropertyChanged
         string? className = null,
         int classTime = 0,
         int classRate = 0,
-        string? trainerName = null)
+        string? trainerName = null,
+        string? trainerId = null)
     {
         return new ClassRegisRecordItem
         {
             TraineeId = traineeId,
             ClassId = classId,
+            TrainerId = trainerId ?? string.Empty,
             RegisDate = regisDate,
             TraineeName = traineeName ?? string.Empty,
             TraineePhone = traineePhone ?? string.Empty,

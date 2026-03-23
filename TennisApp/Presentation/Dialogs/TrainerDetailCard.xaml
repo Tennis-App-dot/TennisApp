@@ -7,137 +7,174 @@
     mc:Ignorable="d">
 
     <Border Background="White"
-            CornerRadius="16"
-            Padding="32"
-            Width="600"
-            MinHeight="400"
-            BorderBrush="#E0E0E0"
+            CornerRadius="20"
+            Padding="24"
+            MaxWidth="750"
+            MinWidth="500"
+            BorderBrush="#E5E7EB"
             BorderThickness="1">
+
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Header with close button -->
-            <Grid Grid.Row="0" Margin="0,0,0,24">
-                <TextBlock Text="ผู้ฝึกสอน"
-                           FontSize="24"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"/>
+            <Grid Grid.Row="0" Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal" Spacing="12"
+                            VerticalAlignment="Center">
+                    <Border Background="#EEF2FF" CornerRadius="10" Width="40" Height="40">
+                        <FontIcon Glyph="&#xE77B;" FontSize="18" Foreground="#6C2BD9"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="ข้อมูลผู้ฝึกสอน"
+                               FontSize="20" FontWeight="Bold"
+                               Foreground="#1A1A2E"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
                 <Button HorizontalAlignment="Right"
                         Background="Transparent"
                         BorderThickness="0"
                         Padding="8"
+                        Width="40" Height="40"
+                        CornerRadius="20"
                         Click="CloseButton_Click">
-                    <FontIcon Glyph="&#xE711;" FontSize="16" Foreground="#666"/>
+                    <FontIcon Glyph="&#xE711;" FontSize="16" Foreground="#9CA3AF"/>
                 </Button>
             </Grid>
 
-            <!-- Profile Section -->
-            <Grid Grid.Row="1" Margin="0,0,0,24">
+            <!-- Divider -->
+            <Border Grid.Row="1" Background="#F3F4F6" Height="1" Margin="0,0,0,16"/>
+
+            <!-- Main Content: Horizontal layout -->
+            <Grid Grid.Row="2" ColumnSpacing="24">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Profile Image -->
-                <Border Grid.Column="0"
-                        Width="150"
-                        Height="150"
-                        CornerRadius="75"
-                        Background="#E0E0E0"
-                        Margin="0,0,24,0">
-                    <Image x:Name="ProfileImage" 
-                           Stretch="UniformToFill"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
-                </Border>
-
-                <!-- Info Section -->
-                <StackPanel Grid.Column="1" 
-                            Spacing="12" 
-                            VerticalAlignment="Center">
+                <!-- Left: Profile Image + ID -->
+                <StackPanel Grid.Column="0" Spacing="10"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center">
+                    <Border Width="130" Height="130"
+                            CornerRadius="65"
+                            Background="#E8EAF6"
+                            HorizontalAlignment="Center">
+                        <Image x:Name="ProfileImage" 
+                               Stretch="UniformToFill"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                    </Border>
                     <TextBlock x:Name="TrainerIdText"
                                Text=""
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#333"/>
+                               FontSize="13" Foreground="#9CA3AF"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"/>
+                </StackPanel>
 
-                    <TextBlock x:Name="NameText"
-                               Text=""
-                               FontSize="16"
-                               Foreground="#555"/>
+                <!-- Right: Info + Buttons -->
+                <StackPanel Grid.Column="1" Spacing="14"
+                            VerticalAlignment="Center">
 
-                    <TextBlock x:Name="NicknameText"
-                               Text=""
-                               FontSize="16"
-                               Foreground="#555"/>
+                    <!-- Info Section -->
+                    <Border Background="#F9FAFB" CornerRadius="10" Padding="16,14">
+                        <StackPanel Spacing="10">
+                            <!-- ชื่อ-นามสกุล -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE77B;" FontSize="14" Foreground="#6C2BD9"
+                                          VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="NameText" Grid.Column="1"
+                                           Text="" FontSize="16" Foreground="#374151"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            </Grid>
 
-                    <Grid>
+                            <!-- ชื่อเล่น -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE8D4;" FontSize="14" Foreground="#6C2BD9"
+                                          VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="NicknameText" Grid.Column="1"
+                                           Text="" FontSize="15" Foreground="#374151"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- วันเกิด + อายุ -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE787;" FontSize="14" Foreground="#6C2BD9"
+                                          VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                                    <TextBlock x:Name="BirthDateText"
+                                               Text="" FontSize="15" Foreground="#374151"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="AgeText"
+                                               Text="" FontSize="15" Foreground="#6B7280"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- เบอร์โทร -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE717;" FontSize="14" Foreground="#6C2BD9"
+                                          VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="PhoneText" Grid.Column="1"
+                                           Text="" FontSize="15" Foreground="#374151"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Action Buttons (horizontal) -->
+                    <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-
-                        <TextBlock x:Name="BirthDateText"
-                                   Grid.Column="0"
-                                   Text=""
-                                   FontSize="16"
-                                   Foreground="#555"/>
-
-                        <TextBlock x:Name="AgeText"
-                                   Grid.Column="1"
-                                   Text=""
-                                   FontSize="16"
-                                   Foreground="#555"
-                                   Margin="32,0,0,0"/>
+                        <Button Grid.Column="0"
+                                HorizontalAlignment="Stretch"
+                                Height="48" CornerRadius="12"
+                                Background="#EEF2FF" Foreground="#6C2BD9"
+                                BorderBrush="#C7D2FE" BorderThickness="1"
+                                Click="EditButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                        HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE70F;" FontSize="16"/>
+                                <TextBlock Text="แก้ไขข้อมูล" FontSize="15" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="1"
+                                HorizontalAlignment="Stretch"
+                                Height="48" CornerRadius="12"
+                                Background="#FEF2F2" Foreground="#DC2626"
+                                BorderBrush="#FECACA" BorderThickness="1"
+                                Click="DeleteButton_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8"
+                                        HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE74D;" FontSize="16"/>
+                                <TextBlock Text="ลบข้อมูล" FontSize="15" FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
-
-                    <TextBlock x:Name="PhoneText"
-                               Text=""
-                               FontSize="16"
-                               Foreground="#555"/>
-                </StackPanel>
-            </Grid>
-
-            <!-- Action Buttons -->
-            <Grid Grid.Row="3" Margin="0,24,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Spacer for future functionality -->
-                <Border Grid.Column="0"/>
-
-                <!-- แก้ไขและลบ (ชิดกัน) -->
-                <StackPanel Grid.Column="1" 
-                            Orientation="Horizontal" 
-                            Spacing="8">
-                    <!-- แก้ไข -->
-                    <Button Content="แก้ไข"
-                            Background="#FFA726"
-                            Foreground="White"
-                            BorderThickness="0"
-                            Height="48"
-                            Width="120"
-                            CornerRadius="4"
-                            FontSize="16"
-                            Click="EditButton_Click"/>
-
-                    <!-- ลบ -->
-                    <Button Content="ลบ"
-                            Background="#EF5350"
-                            Foreground="White"
-                            BorderThickness="0"
-                            Height="48"
-                            Width="100"
-                            CornerRadius="4"
-                            FontSize="16"
-                            Click="DeleteButton_Click"/>
                 </StackPanel>
             </Grid>
         </Grid>

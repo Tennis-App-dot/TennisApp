@@ -21,18 +21,43 @@ public sealed partial class CourseRegistrationFormPage : Page
     private int _selectedPrice;
     private readonly List<TraineeItem> _selectedTrainees = new();
     private readonly ObservableCollection<SelectedTraineeDisplayItem> _displayTrainees = new();
+    private NotificationService? _notify;
 
     public CourseRegistrationFormPage()
     {
         InitializeComponent();
         _database = ((App)Application.Current).DatabaseService;
         SelectedTraineesListView.ItemsSource = _displayTrainees;
+        this.Loaded += (s, e) => _notify = NotificationService.GetFromPage(this);
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
         await LoadCourseCardsAsync();
+    }
+
+    // ── Search ────────────────────────────────────────────────
+    private void TxtCourseSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        RenderCourseCards(GetFilteredCards());
+    }
+
+    private void BtnCourseSearch_Click(object sender, RoutedEventArgs e)
+    {
+        RenderCourseCards(GetFilteredCards());
+    }
+
+    private List<CourseCardItem> GetFilteredCards()
+    {
+        var keyword = TxtCourseSearch.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(keyword)) return _allCourseCards;
+
+        return _allCourseCards.Where(c =>
+            c.ClassId.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+            c.ClassTitle.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+            c.TrainerName.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+        ).ToList();
     }
 
     // ── Load course cards ─────────────────────────────────────
@@ -44,13 +69,13 @@ public sealed partial class CourseRegistrationFormPage : Page
             var allRegistrations = await _database.Registrations.GetAllRegistrationsAsync();
 
             var regCounts = allRegistrations
-                .GroupBy(r => r.ClassId)
+                .GroupBy(r => $"{r.ClassId}|{r.TrainerId}")
                 .ToDictionary(g => g.Key, g => g.Count());
 
             _allCourseCards.Clear();
             foreach (var course in courses)
             {
-                regCounts.TryGetValue(course.ClassId, out int count);
+                regCounts.TryGetValue(course.CompositeKey, out int count);
                 _allCourseCards.Add(new CourseCardItem(course, count));
             }
 
@@ -82,7 +107,7 @@ public sealed partial class CourseRegistrationFormPage : Page
 
     private Border CreateCourseCard(CourseCardItem card)
     {
-        bool isSelected = _selectedCard != null && _selectedCard.ClassId == card.ClassId;
+        bool isSelected = _selectedCard != null && _selectedCard.CompositeKey == card.CompositeKey;
 
         var border = new Border
         {
@@ -97,7 +122,7 @@ public sealed partial class CourseRegistrationFormPage : Page
                 ? new SolidColorBrush(ColorHelper.FromArgb(255, 243, 229, 245))
                 : new SolidColorBrush(Colors.White),
             Padding = new Thickness(14),
-            Tag = card.ClassId
+            Tag = card.CompositeKey
         };
 
         border.Tapped += CourseCard_Tapped;
@@ -164,9 +189,9 @@ public sealed partial class CourseRegistrationFormPage : Page
     // ── Course card tap ───────────────────────────────────────
     private void CourseCard_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        if (sender is Border border && border.Tag is string classId)
+        if (sender is Border border && border.Tag is string compositeKey)
         {
-            var card = _allCourseCards.FirstOrDefault(c => c.ClassId == classId);
+            var card = _allCourseCards.FirstOrDefault(c => c.CompositeKey == compositeKey);
             if (card == null) return;
 
             if (_selectedCard != null) _selectedCard.IsSelected = false;
@@ -176,85 +201,18 @@ public sealed partial class CourseRegistrationFormPage : Page
             TxtSelectedCourseId.Text = $"คอร์ส {card.ClassId}";
             TxtCourseName.Text = card.ClassTitle;
             TxtCourseTrainer.Text = card.TrainerName;
-            TxtPackagePrice.Text = "";
+            TxtSessionInfo.Text = card.SessionsText;
+            TxtPackagePrice.Text = $"฿{card.DefaultPrice:N0}";
             CourseDetailsPanel.Visibility = Visibility.Visible;
 
-            PopulatePackageComboBox(card.Course);
-            BtnAddTrainee.IsEnabled = false;
+            _selectedPrice = card.DefaultPrice;
+            BtnAddTrainee.IsEnabled = true;
 
-            _selectedPrice = 0;
             ClearTrainees();
             UpdateSummary();
             UpdateButtonStates();
             RenderCourseCards(GetFilteredCards());
         }
-    }
-
-    // ── Search ────────────────────────────────────────────────
-    private void TxtCourseSearch_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        RenderCourseCards(GetFilteredCards());
-    }
-
-    private void BtnCourseSearch_Click(object sender, RoutedEventArgs e)
-    {
-        RenderCourseCards(GetFilteredCards());
-    }
-
-    private List<CourseCardItem> GetFilteredCards()
-    {
-        var keyword = TxtCourseSearch.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(keyword)) return _allCourseCards;
-
-        return _allCourseCards.Where(c =>
-            c.ClassId.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-            c.ClassTitle.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-            c.TrainerName.Contains(keyword, StringComparison.OrdinalIgnoreCase)
-        ).ToList();
-    }
-
-    // ── Package selection ─────────────────────────────────────
-    private void PopulatePackageComboBox(CourseItem course)
-    {
-        CmbPackage.Items.Clear();
-        var tiers = new (string Label, int Price)[]
-        {
-            ("ครั้งละ", course.ClassRatePerTime),
-            ("4 ครั้ง", course.ClassRate4),
-            ("8 ครั้ง", course.ClassRate8),
-            ("12 ครั้ง", course.ClassRate12),
-            ("16 ครั้ง", course.ClassRate16),
-            ("รายเดือน", course.ClassRateMonthly),
-        };
-        foreach (var (label, price) in tiers)
-        {
-            if (price > 0)
-            {
-                CmbPackage.Items.Add(new ComboBoxItem
-                {
-                    Content = $"{label}  —  ฿{price:N0}",
-                    Tag = price
-                });
-            }
-        }
-    }
-
-    private void CmbPackage_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CmbPackage.SelectedItem is ComboBoxItem item && item.Tag is int price)
-        {
-            _selectedPrice = price;
-            TxtPackagePrice.Text = $"ราคา: ฿{price:N0}";
-            BtnAddTrainee.IsEnabled = true;
-        }
-        else
-        {
-            _selectedPrice = 0;
-            if (TxtPackagePrice != null) TxtPackagePrice.Text = "";
-            BtnAddTrainee.IsEnabled = false;
-        }
-        UpdateSummary();
-        UpdateButtonStates();
     }
 
     // ── Trainee management ────────────────────────────────────
@@ -263,7 +221,7 @@ public sealed partial class CourseRegistrationFormPage : Page
         if (_selectedCard == null) return;
 
         var alreadySelectedIds = _selectedTrainees.Select(t => t.TraineeId).ToList();
-        var dialog = new TraineeSelectionDialog(_selectedCard.ClassId, alreadySelectedIds);
+        var dialog = new TraineeSelectionDialog(_selectedCard.ClassId, _selectedCard.TrainerId, alreadySelectedIds);
         dialog.XamlRoot = this.XamlRoot;
 
         var result = await dialog.ShowAsync();
@@ -330,11 +288,15 @@ public sealed partial class CourseRegistrationFormPage : Page
         int count = _selectedTrainees.Count;
         int total = _selectedPrice * count;
 
-        bool confirmed = await ShowConfirmDialog(
+        if (_notify == null) return;
+
+        bool confirmed = await _notify.ShowConfirmAsync(
             "ยืนยันการสมัคร",
             $"ยืนยันการสมัครคอร์ส {_selectedCard.ClassId} - {_selectedCard.ClassTitle}\n" +
-            $"จำนวน {count} คน  รวม ฿{total:N0}?"
-        );
+            $"ผู้ฝึกสอน: {_selectedCard.TrainerName}\n" +
+            $"จำนวน {count} คน  รวม ฿{total:N0}?",
+            this.XamlRoot!);
+
         if (!confirmed) return;
 
         int successCount = 0;
@@ -344,7 +306,8 @@ public sealed partial class CourseRegistrationFormPage : Page
         {
             try
             {
-                var exists = await _database.Registrations.RegistrationExistsAsync(trainee.TraineeId, _selectedCard.ClassId);
+                var exists = await _database.Registrations.RegistrationExistsAsync(
+                    trainee.TraineeId, _selectedCard.ClassId, _selectedCard.TrainerId);
                 if (exists)
                 {
                     failedNames.Add($"{trainee.FullName} (สมัครแล้ว)");
@@ -355,6 +318,7 @@ public sealed partial class CourseRegistrationFormPage : Page
                 {
                     TraineeId = trainee.TraineeId,
                     ClassId = _selectedCard.ClassId,
+                    TrainerId = _selectedCard.TrainerId,
                     RegisDate = DateTime.Now
                 };
 
@@ -369,70 +333,22 @@ public sealed partial class CourseRegistrationFormPage : Page
         }
 
         if (failedNames.Count == 0)
-            await ShowMessageDialog("สำเร็จ", $"สมัครคอร์สเรียนสำเร็จ {successCount} คน");
+        {
+            _notify.ShowSuccess($"สมัครคอร์สเรียนสำเร็จ {successCount} คน");
+        }
         else
         {
             string msg = $"สมัครสำเร็จ {successCount}/{count} คน";
             if (failedNames.Count > 0)
-                msg += "\n\nไม่สำเร็จ:\n" + string.Join("\n", failedNames.Select(n => $"• {n}"));
-            await ShowMessageDialog("ผลการสมัคร", msg);
+                msg += "\nไม่สำเร็จ: " + string.Join(", ", failedNames);
+            _notify.ShowWarning(msg, "ผลการสมัคร");
         }
 
-        // Navigate back to registration list
         if (Frame.CanGoBack) Frame.GoBack();
     }
 
     private void BtnBack_Click(object sender, RoutedEventArgs e)
     {
         if (Frame.CanGoBack) Frame.GoBack();
-    }
-
-    // ── Dialogs ───────────────────────────────────────────────
-    private async System.Threading.Tasks.Task ShowMessageDialog(string title, string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = new TextBlock
-            {
-                Text = title,
-                FontFamily = new FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-            },
-            Content = new TextBlock
-            {
-                Text = message,
-                FontFamily = new FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                TextWrapping = TextWrapping.Wrap
-            },
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-        await dialog.ShowAsync();
-    }
-
-    private async System.Threading.Tasks.Task<bool> ShowConfirmDialog(string title, string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = new TextBlock
-            {
-                Text = title,
-                FontFamily = new FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-            },
-            Content = new TextBlock
-            {
-                Text = message,
-                FontFamily = new FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                TextWrapping = TextWrapping.Wrap
-            },
-            PrimaryButtonText = "ใช่",
-            CloseButtonText = "ไม่",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot,
-            FontFamily = new FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 }

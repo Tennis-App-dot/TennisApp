@@ -44,7 +44,7 @@ public partial class App : Application
                 .UseLocalization()
                 .ConfigureServices((context, services) =>
                 {
-                    services.AddSingleton<DatabaseService>();
+                    services.AddSingleton(DatabaseService);
                     services.AddSingleton<FontService>();
                 })
             );

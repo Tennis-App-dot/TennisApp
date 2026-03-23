@@ -35,7 +35,8 @@ public sealed partial class TraineeHistoryPage : Page
         {
             LoadingRing.IsActive = true;
 
-            var databaseService = new DatabaseService();
+            var databaseService = ((App)Application.Current).DatabaseService;
+            databaseService.EnsureInitialized();
 
             _trainee = await databaseService.Trainees.GetTraineeByIdAsync(traineeId);
 
@@ -97,7 +98,7 @@ public sealed partial class TraineeHistoryPage : Page
                 var bitmap = await ImageHelper.CreateBitmapFromBytesAsync(trainee.ImageData);
                 if (bitmap != null)
                 {
-                    ProfileImage.Source = bitmap;
+                    ProfileImageSource.Source = bitmap;
                     PlaceholderIcon.Visibility = Visibility.Collapsed;
                 }
             }
@@ -110,6 +111,11 @@ public sealed partial class TraineeHistoryPage : Page
         {
             System.Diagnostics.Debug.WriteLine($"❌ Error displaying trainee info: {ex.Message}");
         }
+    }
+
+    private void BtnBack_Click(object sender, RoutedEventArgs e)
+    {
+        if (Frame.CanGoBack) Frame.GoBack();
     }
 
     private async System.Threading.Tasks.Task ShowErrorDialog(string message)

@@ -29,7 +29,19 @@ public partial class CoursePageViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoading;
 
-    // ─── Multi-field search ────────────────────────────────────
+    [ObservableProperty]
+    private bool _hasNoResults;
+
+    // ─── Search fields for ComboBox ───────────────────────────
+    public ObservableCollection<string> SearchFields { get; } = new()
+    {
+        "ทั้งหมด",
+        "รหัสคอร์ส",
+        "ชื่อคอร์ส",
+        "ผู้ฝึกสอน"
+    };
+
+    // ─── Multi-field search (keep for backward compat) ────────
     [ObservableProperty]
     private string _searchClassId = string.Empty;
 
@@ -54,6 +66,7 @@ public partial class CoursePageViewModel : ObservableObject
         {
             _database.EnsureInitialized();
             IsLoading = true;
+            HasNoResults = false;
             System.Diagnostics.Debug.WriteLine("📚 Loading courses...");
 
             var courses = await _database.Courses.GetAllCoursesAsync().ConfigureAwait(false);
@@ -66,6 +79,8 @@ public partial class CoursePageViewModel : ObservableObject
                 Courses.Add(course);
                 FilteredCourses.Add(course);
             }
+
+            HasNoResults = Courses.Count == 0;
 
             // Load trainer names for filter ComboBox
             await LoadTrainerNamesAsync();
@@ -193,6 +208,49 @@ public partial class CoursePageViewModel : ObservableObject
                 }
 
                 System.Diagnostics.Debug.WriteLine($"✅ Deleted course: {classId}");
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Error deleting course: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Delete course by composite key (class_id + trainer_id)
+    /// </summary>
+    [RelayCommand]
+    public async Task<bool> DeleteCourseByKeyAsync(string compositeKey)
+    {
+        try
+        {
+            var key = CourseKey.Parse(compositeKey);
+            if (key == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ Invalid composite key: {compositeKey}");
+                return false;
+            }
+
+            var success = await _database.Courses.DeleteCourseAsync(key.ClassId, key.TrainerId).ConfigureAwait(false);
+            
+            if (success)
+            {
+                var courseToRemove = Courses.FirstOrDefault(c => c.ClassId == key.ClassId && c.TrainerId == key.TrainerId);
+                if (courseToRemove != null)
+                {
+                    Courses.Remove(courseToRemove);
+                }
+
+                var filteredCourseToRemove = FilteredCourses.FirstOrDefault(c => c.ClassId == key.ClassId && c.TrainerId == key.TrainerId);
+                if (filteredCourseToRemove != null)
+                {
+                    FilteredCourses.Remove(filteredCourseToRemove);
+                }
+
+                System.Diagnostics.Debug.WriteLine($"✅ Deleted course: {key.ClassId} + {key.TrainerId}");
             }
 
             return success;

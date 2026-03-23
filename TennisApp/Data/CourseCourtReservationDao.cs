@@ -29,44 +29,81 @@ public class CourseCourtReservationDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // ✅ Enable Foreign Key enforcement
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
         // ✅ สร้างสนาม dummy "00" ก่อน (ถ้ายังไม่มี)
         EnsureDummyCourtExists(connection);
 
-        var createCommand = connection.CreateCommand();
-        createCommand.CommandText = @"
-            CREATE TABLE IF NOT EXISTS CourseCourtReservation (
-                c_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,
-                court_id           TEXT(2) NOT NULL,
-                class_id           TEXT(8) NOT NULL,
-                c_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                c_reserve_date     DATE NOT NULL,
-                c_reserve_time     TIME NOT NULL,
-                c_reserve_duration REAL NOT NULL,
-                c_reserve_name     TEXT(50) NOT NULL,
-                c_reserve_phone    TEXT(10) NULL,
-                c_status           TEXT(20) NOT NULL DEFAULT 'booked'
-            );
-        ";
-        createCommand.ExecuteNonQuery();
+        // ─── ตรวจสอบว่าตาราง CourseCourtReservation มีอยู่หรือไม่ ───
+        var checkTable = connection.CreateCommand();
+        checkTable.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CourseCourtReservation'";
+        var hasTable = Convert.ToInt32(checkTable.ExecuteScalar()) > 0;
 
-        // ✅ เพิ่มคอลัมน์ c_status ถ้ายังไม่มี (สำหรับ DB เดิม)
-        try
+        if (hasTable)
         {
-            var alterCommand = connection.CreateCommand();
-            alterCommand.CommandText = "ALTER TABLE CourseCourtReservation ADD COLUMN c_status TEXT(20) NOT NULL DEFAULT 'booked'";
-            alterCommand.ExecuteNonQuery();
-            System.Diagnostics.Debug.WriteLine("✅ CourseCourtReservation: เพิ่มคอลัมน์ c_status สำเร็จ");
+            // ตรวจสอบว่ามี trainer_id column หรือไม่
+            var checkCol = connection.CreateCommand();
+            checkCol.CommandText = "PRAGMA table_info(CourseCourtReservation)";
+            bool hasTrainerIdCol = false;
+
+            using var reader = checkCol.ExecuteReader();
+            while (reader.Read())
+            {
+                if (reader.GetString(1) == "trainer_id")
+                {
+                    hasTrainerIdCol = true;
+                    break;
+                }
+            }
+
+            if (!hasTrainerIdCol)
+            {
+                System.Diagnostics.Debug.WriteLine("🔄 Migrating CourseCourtReservation: adding trainer_id column...");
+                MigrateAddTrainerId(connection);
+            }
+
+            // ✅ เพิ่มคอลัมน์ c_status ถ้ายังไม่มี (สำหรับ DB เดิม)
+            try
+            {
+                var alterCommand = connection.CreateCommand();
+                alterCommand.CommandText = "ALTER TABLE CourseCourtReservation ADD COLUMN c_status TEXT(20) NOT NULL DEFAULT 'booked'";
+                alterCommand.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine("✅ CourseCourtReservation: เพิ่มคอลัมน์ c_status สำเร็จ");
+            }
+            catch { /* คอลัมน์มีอยู่แล้ว */ }
+
+            // ✅ เพิ่มคอลัมน์ Start-Stop สำหรับบันทึกเวลาเข้า-ออกจริง
+            string[] startStopColumns =
+            [
+                "ALTER TABLE CourseCourtReservation ADD COLUMN c_actual_start DATETIME NULL",
+                "ALTER TABLE CourseCourtReservation ADD COLUMN c_actual_end DATETIME NULL"
+            ];
+            foreach (var sql in startStopColumns)
+            {
+                try
+                {
+                    var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    cmd.ExecuteNonQuery();
+                    System.Diagnostics.Debug.WriteLine($"✅ CourseCourtReservation migration: {sql.Split("ADD COLUMN ")[1]}");
+                }
+                catch { /* คอลัมน์มีอยู่แล้ว */ }
+            }
         }
-        catch
+        else
         {
-            // คอลัมน์มีอยู่แล้ว → ข้ามไป
+            CreateReservationTable(connection);
         }
 
-        // ✅ สร้าง indexes หลังจากมั่นใจว่าคอลัมน์ c_status มีแล้ว
+        // ✅ สร้าง indexes
         var indexCommand = connection.CreateCommand();
         indexCommand.CommandText = @"
             CREATE INDEX IF NOT EXISTS IX_CourseCourtReservation_Court ON CourseCourtReservation(court_id);
             CREATE INDEX IF NOT EXISTS IX_CourseCourtReservation_Class ON CourseCourtReservation(class_id);
+            CREATE INDEX IF NOT EXISTS IX_CourseCourtReservation_Trainer ON CourseCourtReservation(trainer_id);
             CREATE INDEX IF NOT EXISTS IX_CourseCourtReservation_Date ON CourseCourtReservation(c_reserve_date);
             CREATE INDEX IF NOT EXISTS IX_CourseCourtReservation_Request ON CourseCourtReservation(c_request_date);
             CREATE INDEX IF NOT EXISTS IX_CourseCourtReservation_Status ON CourseCourtReservation(c_status);
@@ -74,6 +111,58 @@ public class CourseCourtReservationDao
         indexCommand.ExecuteNonQuery();
 
         System.Diagnostics.Debug.WriteLine("✅ CourseCourtReservation table initialized");
+    }
+
+    private void CreateReservationTable(SqliteConnection connection)
+    {
+        var createCommand = connection.CreateCommand();
+        createCommand.CommandText = @"
+            CREATE TABLE IF NOT EXISTS CourseCourtReservation (
+                c_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,
+                court_id           TEXT(2) NOT NULL,
+                class_id           TEXT(8) NOT NULL,
+                trainer_id         TEXT(9) NOT NULL DEFAULT '',
+                c_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                c_reserve_date     DATE NOT NULL,
+                c_reserve_time     TIME NOT NULL,
+                c_reserve_duration REAL NOT NULL,
+                c_reserve_name     TEXT(50) NOT NULL,
+                c_reserve_phone    TEXT(10) NULL,
+                c_status           TEXT(20) NOT NULL DEFAULT 'booked',
+                c_actual_start     DATETIME NULL,
+                c_actual_end       DATETIME NULL
+            );
+        ";
+        createCommand.ExecuteNonQuery();
+    }
+
+    private void MigrateAddTrainerId(SqliteConnection connection)
+    {
+        try
+        {
+            // SQLite supports ADD COLUMN — just add trainer_id with default ''
+            var alter = connection.CreateCommand();
+            alter.CommandText = "ALTER TABLE CourseCourtReservation ADD COLUMN trainer_id TEXT(9) NOT NULL DEFAULT ''";
+            alter.ExecuteNonQuery();
+
+            // Fill trainer_id from Course table where possible
+            var update = connection.CreateCommand();
+            update.CommandText = @"
+                UPDATE CourseCourtReservation
+                SET trainer_id = COALESCE(
+                    (SELECT c.trainer_id FROM Course c WHERE c.class_id = CourseCourtReservation.class_id LIMIT 1),
+                    ''
+                )
+                WHERE trainer_id = ''
+            ";
+            var updated = update.ExecuteNonQuery();
+
+            System.Diagnostics.Debug.WriteLine($"✅ CourseCourtReservation migration complete: {updated} records updated with trainer_id");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ CourseCourtReservation migration error: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -122,9 +211,9 @@ public class CourseCourtReservationDao
     {
         const string sql = @"
             INSERT INTO CourseCourtReservation 
-            (c_reserve_id, court_id, class_id, c_request_date, c_reserve_date, c_reserve_time, c_reserve_duration, c_reserve_name, c_reserve_phone, c_status)
+            (c_reserve_id, court_id, class_id, trainer_id, c_request_date, c_reserve_date, c_reserve_time, c_reserve_duration, c_reserve_name, c_reserve_phone, c_status, c_actual_start, c_actual_end)
             VALUES 
-            (@ReserveId, @CourtId, @ClassId, @RequestDate, @ReserveDate, @ReserveTime, @Duration, @ReserveName, @ReservePhone, @Status)";
+            (@ReserveId, @CourtId, @ClassId, @TrainerId, @RequestDate, @ReserveDate, @ReserveTime, @Duration, @ReserveName, @ReservePhone, @Status, @ActualStart, @ActualEnd)";
 
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
@@ -133,6 +222,7 @@ public class CourseCourtReservationDao
         cmd.Parameters.AddWithValue("@ReserveId", reservation.ReserveId);
         cmd.Parameters.AddWithValue("@CourtId", reservation.CourtId);
         cmd.Parameters.AddWithValue("@ClassId", reservation.ClassId);
+        cmd.Parameters.AddWithValue("@TrainerId", reservation.TrainerId ?? string.Empty);
         cmd.Parameters.AddWithValue("@RequestDate", reservation.RequestDate.ToString("yyyy-MM-dd HH:mm:ss"));
         cmd.Parameters.AddWithValue("@ReserveDate", reservation.ReserveDate.ToString("yyyy-MM-dd"));
         cmd.Parameters.AddWithValue("@ReserveTime", reservation.ReserveTime.ToString(@"hh\:mm\:ss"));
@@ -140,6 +230,8 @@ public class CourseCourtReservationDao
         cmd.Parameters.AddWithValue("@ReserveName", reservation.ReserveName);
         cmd.Parameters.AddWithValue("@ReservePhone", string.IsNullOrEmpty(reservation.ReservePhone) ? DBNull.Value : reservation.ReservePhone);
         cmd.Parameters.AddWithValue("@Status", reservation.Status ?? "booked");
+        cmd.Parameters.AddWithValue("@ActualStart", reservation.ActualStart.HasValue ? reservation.ActualStart.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
+        cmd.Parameters.AddWithValue("@ActualEnd", reservation.ActualEnd.HasValue ? reservation.ActualEnd.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
         return rowsAffected > 0;
@@ -149,19 +241,22 @@ public class CourseCourtReservationDao
     // READ
     // ========================================================================
 
+    // ─── Shared SQL fragment for all reads ───────────────────
+    private const string SelectWithCourseInfo = @"
+        SELECT 
+            r.c_reserve_id, r.court_id, r.class_id, r.c_request_date,
+            r.c_reserve_date, r.c_reserve_time, r.c_reserve_name, r.c_reserve_phone,
+            co.class_title, co.class_duration, r.c_status, r.trainer_id,
+            r.c_actual_start, r.c_actual_end
+        FROM CourseCourtReservation r
+        INNER JOIN Course co ON r.class_id = co.class_id AND r.trainer_id = co.trainer_id";
+
     /// <summary>
     /// Get all course court reservations with course details
     /// </summary>
     public async Task<List<CourseCourtReservationItem>> GetAllReservationsAsync()
     {
-        const string sql = @"
-            SELECT 
-                r.c_reserve_id, r.court_id, r.class_id, r.c_request_date,
-                r.c_reserve_date, r.c_reserve_time, r.c_reserve_name, r.c_reserve_phone,
-                co.class_title, co.class_duration, r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
-            ORDER BY r.c_reserve_date DESC, r.c_reserve_time DESC";
+        var sql = SelectWithCourseInfo + " ORDER BY r.c_reserve_date DESC, r.c_reserve_time DESC";
 
         var reservations = new List<CourseCourtReservationItem>();
 
@@ -184,14 +279,7 @@ public class CourseCourtReservationDao
     /// </summary>
     public async Task<CourseCourtReservationItem?> GetReservationByIdAsync(string reserveId)
     {
-        const string sql = @"
-            SELECT 
-                r.c_reserve_id, r.court_id, r.class_id, r.c_request_date,
-                r.c_reserve_date, r.c_reserve_time, r.c_reserve_name, r.c_reserve_phone,
-                co.class_title, co.class_duration, r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
-            WHERE r.c_reserve_id = @ReserveId";
+        var sql = SelectWithCourseInfo + " WHERE r.c_reserve_id = @ReserveId";
 
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
@@ -213,21 +301,7 @@ public class CourseCourtReservationDao
     /// </summary>
     public async Task<List<CourseCourtReservationItem>> GetReservationsByCourtAsync(string courtId)
     {
-        const string sql = @"
-            SELECT 
-                r.c_reserve_id,
-                r.court_id,
-                r.class_id,
-                r.c_request_date,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                co.class_title,
-                co.class_duration,
-                r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
+        var sql = SelectWithCourseInfo + @"
             WHERE r.court_id = @CourtId
             ORDER BY r.c_reserve_date DESC, r.c_reserve_time DESC";
 
@@ -253,21 +327,7 @@ public class CourseCourtReservationDao
     /// </summary>
     public async Task<List<CourseCourtReservationItem>> GetReservationsByClassAsync(string classId)
     {
-        const string sql = @"
-            SELECT 
-                r.c_reserve_id,
-                r.court_id,
-                r.class_id,
-                r.c_request_date,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                co.class_title,
-                co.class_duration,
-                r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
+        var sql = SelectWithCourseInfo + @"
             WHERE r.class_id = @ClassId
             ORDER BY r.c_reserve_date DESC, r.c_reserve_time DESC";
 
@@ -293,21 +353,7 @@ public class CourseCourtReservationDao
     /// </summary>
     public async Task<List<CourseCourtReservationItem>> GetReservationsByDateAsync(DateTime reserveDate)
     {
-        const string sql = @"
-            SELECT 
-                r.c_reserve_id,
-                r.court_id,
-                r.class_id,
-                r.c_request_date,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                co.class_title,
-                co.class_duration,
-                r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
+        var sql = SelectWithCourseInfo + @"
             WHERE r.c_reserve_date = @ReserveDate
             ORDER BY r.c_reserve_time";
 
@@ -334,21 +380,7 @@ public class CourseCourtReservationDao
     /// </summary>
     public async Task<List<CourseCourtReservationItem>> GetReservationsByRequestDateAsync(DateTime requestDate)
     {
-        const string sql = @"
-            SELECT 
-                r.c_reserve_id,
-                r.court_id,
-                r.class_id,
-                r.c_request_date,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                co.class_title,
-                co.class_duration,
-                r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
+        var sql = SelectWithCourseInfo + @"
             WHERE date(r.c_request_date) = @RequestDate
             ORDER BY r.c_reserve_id";
 
@@ -378,11 +410,11 @@ public class CourseCourtReservationDao
         const string sql = @"
             SELECT COUNT(*) 
             FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
             WHERE r.court_id = @CourtId
               AND r.c_reserve_date = @ReserveDate
+              AND r.c_status IN ('booked', 'in_use')
               AND time(r.c_reserve_time) < time(@EndTime)
-              AND time(r.c_reserve_time, '+' || co.class_duration || ' hours') > time(@StartTime)";
+              AND time(r.c_reserve_time, '+' || r.c_reserve_duration || ' hours') > time(@StartTime)";
 
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
@@ -390,10 +422,10 @@ public class CourseCourtReservationDao
         using var cmd = new SqliteCommand(sql, connection);
         cmd.Parameters.AddWithValue("@CourtId", courtId);
         cmd.Parameters.AddWithValue("@ReserveDate", reserveDate.ToString("yyyy-MM-dd"));
-        cmd.Parameters.AddWithValue("@StartTime", startTime.ToString(@"hh\:mm\:ss")); // ✅ Fixed
+        cmd.Parameters.AddWithValue("@StartTime", startTime.ToString(@"hh\:mm\:ss"));
         
         var endTime = startTime.Add(TimeSpan.FromHours(duration));
-        cmd.Parameters.AddWithValue("@EndTime", endTime.ToString(@"hh\:mm\:ss")); // ✅ Fixed
+        cmd.Parameters.AddWithValue("@EndTime", endTime.ToString(@"hh\:mm\:ss"));
 
         var count = Convert.ToInt32(await cmd.ExecuteScalarAsync().ConfigureAwait(false));
         return count == 0; // Available if no overlapping reservations
@@ -442,22 +474,7 @@ public class CourseCourtReservationDao
         DateTime? reserveDate = null,
         string? reserveName = null)
     {
-        var sql = @"
-            SELECT 
-                r.c_reserve_id,
-                r.court_id,
-                r.class_id,
-                r.c_request_date,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                co.class_title,
-                co.class_duration,
-                r.c_status
-            FROM CourseCourtReservation r
-            INNER JOIN Course co ON r.class_id = co.class_id
-            WHERE 1=1";
+        var sql = SelectWithCourseInfo + " WHERE 1=1";
 
         var conditions = new List<string>();
         var parameters = new List<(string name, object value)>();
@@ -523,12 +540,15 @@ public class CourseCourtReservationDao
             SET
                 court_id = @CourtId,
                 class_id = @ClassId,
+                trainer_id = @TrainerId,
                 c_reserve_date = @ReserveDate,
                 c_reserve_time = @ReserveTime,
                 c_reserve_duration = @Duration,
                 c_reserve_name = @ReserveName,
                 c_reserve_phone = @ReservePhone,
-                c_status = @Status
+                c_status = @Status,
+                c_actual_start = @ActualStart,
+                c_actual_end = @ActualEnd
             WHERE c_reserve_id = @ReserveId";
 
         await using var connection = new SqliteConnection(_connectionString);
@@ -538,12 +558,15 @@ public class CourseCourtReservationDao
         cmd.Parameters.AddWithValue("@ReserveId", reservation.ReserveId);
         cmd.Parameters.AddWithValue("@CourtId", reservation.CourtId);
         cmd.Parameters.AddWithValue("@ClassId", reservation.ClassId);
+        cmd.Parameters.AddWithValue("@TrainerId", reservation.TrainerId ?? string.Empty);
         cmd.Parameters.AddWithValue("@ReserveDate", reservation.ReserveDate.ToString("yyyy-MM-dd"));
         cmd.Parameters.AddWithValue("@ReserveTime", reservation.ReserveTime.ToString(@"hh\:mm\:ss"));
         cmd.Parameters.AddWithValue("@Duration", reservation.Duration);
         cmd.Parameters.AddWithValue("@ReserveName", reservation.ReserveName);
         cmd.Parameters.AddWithValue("@ReservePhone", string.IsNullOrEmpty(reservation.ReservePhone) ? DBNull.Value : reservation.ReservePhone);
         cmd.Parameters.AddWithValue("@Status", reservation.Status ?? "booked");
+        cmd.Parameters.AddWithValue("@ActualStart", reservation.ActualStart.HasValue ? reservation.ActualStart.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
+        cmd.Parameters.AddWithValue("@ActualEnd", reservation.ActualEnd.HasValue ? reservation.ActualEnd.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
         return rowsAffected > 0;
@@ -581,6 +604,10 @@ public class CourseCourtReservationDao
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
 
+        // ✅ Enable Foreign Key enforcement for CASCADE delete
+        using var pragmaCmd = new SqliteCommand("PRAGMA foreign_keys = ON", connection);
+        await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+
         using var cmd = new SqliteCommand(sql, connection);
         cmd.Parameters.AddWithValue("@ReserveId", reserveId);
 
@@ -597,6 +624,10 @@ public class CourseCourtReservationDao
 
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
+
+        // ✅ Enable Foreign Key enforcement for CASCADE delete
+        using var pragmaCmd = new SqliteCommand("PRAGMA foreign_keys = ON", connection);
+        await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
 
         using var cmd = new SqliteCommand(sql, connection);
         var rowsAffected = await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
@@ -628,7 +659,10 @@ public class CourseCourtReservationDao
             ReservePhone = reader.IsDBNull(7) ? string.Empty : reader.GetString(7), // c_reserve_phone
             ClassTitle = reader.GetString(8),       // class_title (from Course)
             ClassDuration = reader.GetInt32(9),      // class_duration (from Course)
-            Status = reader.IsDBNull(10) ? "booked" : reader.GetString(10)
+            Status = reader.IsDBNull(10) ? "booked" : reader.GetString(10),
+            TrainerId = reader.IsDBNull(11) ? string.Empty : reader.GetString(11), // trainer_id
+            ActualStart = reader.IsDBNull(12) ? null : DateTime.Parse(reader.GetString(12)),
+            ActualEnd = reader.IsDBNull(13) ? null : DateTime.Parse(reader.GetString(13))
         };
     }
 }

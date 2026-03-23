@@ -3,10 +3,11 @@
 
 -- Main Court table
 CREATE TABLE Court (
-    court_id      TEXT(2) PRIMARY KEY NOT NULL,          -- e.g. '01' .. '99'
-    court_img     BLOB NULL,                             -- optional image bytes
-    court_status  TEXT(1) NOT NULL DEFAULT '1',          -- '0' = maintenance, '1' = ready
-    last_updated  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    court_id         TEXT(2) PRIMARY KEY NOT NULL,          -- e.g. '01' .. '99'
+    court_img        BLOB NULL,                             -- optional image bytes
+    court_status     TEXT(1) NOT NULL DEFAULT '1',          -- '0' = maintenance, '1' = ready
+    maintenance_date DATE NULL,                             -- วันที่ปรับปรุงสนามจริง (ผู้ใช้เลือก)
+    last_updated     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP -- วันที่+เวลาที่กดบันทึกในระบบ (อัตโนมัติ)
 );
 
 -- Index for performance
@@ -253,22 +254,25 @@ CREATE INDEX IX_ClassRegisRecord_Date ON ClassRegisRecord(regis_date);
 -- PaidCourtReservation (การจองสนามแบบเช่า - คิดเงิน)
 -- =============================================================================
 CREATE TABLE PaidCourtReservation (
-    p_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,    -- Reservation ID (YYYYMMDDXX)
-    court_id           TEXT(2) NOT NULL,                 -- FK to Court
-    p_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Date/time of booking request
-    p_reserve_date     DATE NOT NULL,                    -- Date to use court
-    p_reserve_time     TIME NOT NULL,                    -- Time to use court (HH:MM)
-    p_reserve_duration REAL NOT NULL,                    -- Duration in hours (e.g., 1.0, 2.0)
-    p_reserve_name     TEXT(50) NOT NULL,                -- Customer name
-    p_reserve_phone    TEXT(10) NULL,                    -- Customer phone (optional)
-    
-    FOREIGN KEY (court_id) REFERENCES Court(court_id) ON DELETE CASCADE
+    p_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,    -- e.g. '2025041609' (YYYYMMDDXX)
+    court_id           TEXT(2) NOT NULL,                 -- FK to Court ('00' = ยังไม่จัดสรร)
+    p_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    p_reserve_date     DATE NOT NULL,                    -- วันที่ต้องการใช้สนาม
+    p_reserve_time     TIME NOT NULL,                    -- เวลาเริ่มใช้สนาม
+    p_reserve_duration REAL NOT NULL,                    -- ระยะเวลา (ชั่วโมง)
+    p_reserve_name     TEXT(50) NOT NULL,                -- ชื่อผู้จอง
+    p_reserve_phone    TEXT(10) NULL,                    -- เบอร์โทร (optional)
+    p_status           TEXT(20) NOT NULL DEFAULT 'booked', -- booked/in_use/completed/cancelled
+    p_actual_start     DATETIME NULL,                    -- เวลาเริ่มใช้งานจริง (กด Start)
+    p_actual_end       DATETIME NULL,                    -- เวลาหยุดใช้งานจริง (กด Stop)
+    p_actual_price     INTEGER NULL                      -- ค่าบริการจริง (กรอกตอน Stop)
 );
 
 -- Index for performance
 CREATE INDEX IX_PaidCourtReservation_Court ON PaidCourtReservation(court_id);
 CREATE INDEX IX_PaidCourtReservation_Date ON PaidCourtReservation(p_reserve_date);
 CREATE INDEX IX_PaidCourtReservation_Request ON PaidCourtReservation(p_request_date);
+CREATE INDEX IX_PaidCourtReservation_Status ON PaidCourtReservation(p_status);
 
 -- CRUD Templates for PaidCourtReservation:
 
@@ -332,36 +336,41 @@ CREATE INDEX IX_PaidCourtReservation_Request ON PaidCourtReservation(p_request_d
 -- CourseCourtReservation (การจองสนามสำหรับคอร์ส - ไม่คิดเงิน)
 -- =============================================================================
 CREATE TABLE CourseCourtReservation (
-    c_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,    -- Reservation ID (YYYYMMDDXX)
-    court_id           TEXT(2) NOT NULL,                 -- FK to Court
-    class_id           TEXT(4) NOT NULL,                 -- FK to Course
-    c_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Date/time of booking request
-    c_reserve_date     DATE NOT NULL,                    -- Date to use court
-    c_reserve_time     TIME NOT NULL,                    -- Time to use court (HH:MM)
-    c_reserve_name     TEXT(50) NOT NULL,                -- Trainer name (from Trainer table)
-    c_reserve_phone    TEXT(10) NULL,                    -- Trainer phone (from Trainer table)
-    
-    FOREIGN KEY (court_id) REFERENCES Court(court_id) ON DELETE CASCADE,
-    FOREIGN KEY (class_id) REFERENCES Course(class_id) ON DELETE CASCADE
+    c_reserve_id       TEXT(10) PRIMARY KEY NOT NULL,    -- e.g. '2025041609' (YYYYMMDDXX)
+    court_id           TEXT(2) NOT NULL,                 -- FK to Court ('00' = ยังไม่จัดสรร)
+    class_id           TEXT(8) NOT NULL,                 -- FK to Course
+    trainer_id         TEXT(9) NOT NULL DEFAULT '',       -- FK to Trainer
+    c_request_date     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    c_reserve_date     DATE NOT NULL,                    -- วันที่ต้องการใช้สนาม
+    c_reserve_time     TIME NOT NULL,                    -- เวลาเริ่มใช้สนาม
+    c_reserve_duration REAL NOT NULL,                    -- ระยะเวลา (ชั่วโมง)
+    c_reserve_name     TEXT(50) NOT NULL,                -- ชื่อผู้จอง/โค้ช
+    c_reserve_phone    TEXT(10) NULL,                    -- เบอร์โทร (optional)
+    c_status           TEXT(20) NOT NULL DEFAULT 'booked', -- booked/in_use/completed/cancelled
+    c_actual_start     DATETIME NULL,                    -- เวลาเริ่มใช้งานจริง (กด Start)
+    c_actual_end       DATETIME NULL                     -- เวลาหยุดใช้งานจริง (กด Stop)
 );
 
 -- Index for performance
 CREATE INDEX IX_CourseCourtReservation_Court ON CourseCourtReservation(court_id);
 CREATE INDEX IX_CourseCourtReservation_Class ON CourseCourtReservation(class_id);
+CREATE INDEX IX_CourseCourtReservation_Trainer ON CourseCourtReservation(trainer_id);
 CREATE INDEX IX_CourseCourtReservation_Date ON CourseCourtReservation(c_reserve_date);
 CREATE INDEX IX_CourseCourtReservation_Request ON CourseCourtReservation(c_request_date);
+CREATE INDEX IX_CourseCourtReservation_Status ON CourseCourtReservation(c_status);
 
 -- CRUD Templates for CourseCourtReservation:
 
 -- Insert (Add course reservation)
--- INSERT INTO CourseCourtReservation (c_reserve_id, court_id, class_id, c_request_date, c_reserve_date, c_reserve_time, c_reserve_name, c_reserve_phone)
--- VALUES (:c_reserve_id, :court_id, :class_id, :c_request_date, :c_reserve_date, :c_reserve_time, :c_reserve_name, :c_reserve_phone);
+-- INSERT INTO CourseCourtReservation (c_reserve_id, court_id, class_id, trainer_id, c_request_date, c_reserve_date, c_reserve_time, c_reserve_name, c_reserve_phone)
+-- VALUES (:c_reserve_id, :court_id, :class_id, :trainer_id, :c_request_date, :c_reserve_date, :c_reserve_time, :c_reserve_name, :c_reserve_phone);
 
 -- Update (Edit course reservation)
 -- UPDATE CourseCourtReservation
 -- SET
 --     court_id       = :court_id,
 --     class_id       = :class_id,
+--     trainer_id     = :trainer_id,
 --     c_reserve_date = :c_reserve_date,
 --     c_reserve_time = :c_reserve_time,
 --     c_reserve_name = :c_reserve_name,

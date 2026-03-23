@@ -6,12 +6,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TennisApp.Models;
 using TennisApp.Services;
+using TennisApp.Helpers;
 
 namespace TennisApp.Presentation.ViewModels;
 
 public partial class TraineePageViewModel : ObservableObject
 {
-    private readonly DatabaseService _databaseService;
+    private readonly DatabaseService _databaseService = null!;
     private readonly ObservableCollection<TraineeItem> _allTrainees = new();
     
     [ObservableProperty]
@@ -51,7 +52,7 @@ public partial class TraineePageViewModel : ObservableObject
         
         try
         {
-            _databaseService = new DatabaseService();
+            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
             System.Diagnostics.Debug.WriteLine("DatabaseService created successfully");
         }
         catch (Exception ex)
@@ -80,6 +81,17 @@ public partial class TraineePageViewModel : ObservableObject
 
             foreach (var trainee in result.Items)
             {
+                if (trainee.ImageData != null && trainee.ImageData.Length > 0)
+                {
+                    try
+                    {
+                        trainee.ImageSource = await ImageHelper.CreateBitmapFromBytesAsync(trainee.ImageData);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Failed to load image for {trainee.TraineeId}: {ex.Message}");
+                    }
+                }
                 Trainees.Add(trainee);
             }
 
@@ -116,6 +128,17 @@ public partial class TraineePageViewModel : ObservableObject
 
             foreach (var trainee in result.Items)
             {
+                if (trainee.ImageData != null && trainee.ImageData.Length > 0)
+                {
+                    try
+                    {
+                        trainee.ImageSource = await ImageHelper.CreateBitmapFromBytesAsync(trainee.ImageData);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Failed to load image for {trainee.TraineeId}: {ex.Message}");
+                    }
+                }
                 Trainees.Add(trainee);
             }
 

@@ -19,6 +19,11 @@ public class PaidCourtReservationItem : INotifyPropertyChanged
     private string _reservePhone = string.Empty;
     private string _status = "booked";
 
+    // Start-Stop fields (สำหรับบันทึกเวลาเข้า-ออกจริง)
+    private DateTime? _actualStart;
+    private DateTime? _actualEnd;
+    private int? _actualPrice;
+
     // ========================================================================
     // Database Fields (ตรงกับ Database Schema)
     // ========================================================================
@@ -137,6 +142,37 @@ public class PaidCourtReservationItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(StatusColor));
             }
         }
+    }
+
+    // ========================================================================
+    // Start-Stop Fields (บันทึกเวลาเข้า-ออกจริง)
+    // ========================================================================
+
+    /// <summary>
+    /// เวลาเริ่มใช้งานจริง (ตอนกด Start)
+    /// </summary>
+    public DateTime? ActualStart
+    {
+        get => _actualStart;
+        set => SetProperty(ref _actualStart, value);
+    }
+
+    /// <summary>
+    /// เวลาหยุดใช้งานจริง (ตอนกด Stop)
+    /// </summary>
+    public DateTime? ActualEnd
+    {
+        get => _actualEnd;
+        set => SetProperty(ref _actualEnd, value);
+    }
+
+    /// <summary>
+    /// ค่าบริการจริง (กรอกตอนกด Stop)
+    /// </summary>
+    public int? ActualPrice
+    {
+        get => _actualPrice;
+        set => SetProperty(ref _actualPrice, value);
     }
 
     // ========================================================================
@@ -295,7 +331,10 @@ public class PaidCourtReservationItem : INotifyPropertyChanged
             Duration = this.Duration,
             ReserveName = this.ReserveName,
             ReservePhone = this.ReservePhone,
-            Status = this.Status
+            Status = this.Status,
+            ActualStart = this.ActualStart,
+            ActualEnd = this.ActualEnd,
+            ActualPrice = this.ActualPrice
         };
     }
 }

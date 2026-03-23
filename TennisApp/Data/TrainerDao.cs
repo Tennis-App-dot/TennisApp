@@ -28,6 +28,11 @@ public class TrainerDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // ✅ Enable Foreign Key enforcement
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
         var createCommand = connection.CreateCommand();
         createCommand.CommandText = @"
             CREATE TABLE IF NOT EXISTS Trainer (
@@ -248,6 +253,11 @@ public class TrainerDao
     {
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
+
+        // ✅ Enable Foreign Key enforcement for SET NULL cascade
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
 
         var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM Trainer WHERE trainer_id = @trainer_id";

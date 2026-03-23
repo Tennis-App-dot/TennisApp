@@ -6,12 +6,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TennisApp.Models;
 using TennisApp.Services;
+using TennisApp.Helpers;
 
 namespace TennisApp.Presentation.ViewModels;
 
 public partial class TrainerPageViewModel : ObservableObject
 {
-    private readonly DatabaseService _databaseService;
+    private readonly DatabaseService _databaseService = null!;
     private readonly ObservableCollection<TrainerItem> _allTrainers = new();
     
     [ObservableProperty]
@@ -51,7 +52,7 @@ public partial class TrainerPageViewModel : ObservableObject
         
         try
         {
-            _databaseService = new DatabaseService();
+            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
             System.Diagnostics.Debug.WriteLine("DatabaseService created successfully");
             System.Diagnostics.Debug.WriteLine("TrainerPageViewModel ready - database connected");
         }
@@ -82,6 +83,18 @@ public partial class TrainerPageViewModel : ObservableObject
 
             foreach (var trainer in result.Items)
             {
+                // แปลง ImageData → ImageSource สำหรับ UI binding
+                if (trainer.ImageData != null && trainer.ImageData.Length > 0)
+                {
+                    try
+                    {
+                        trainer.ImageSource = await ImageHelper.CreateBitmapFromBytesAsync(trainer.ImageData);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Failed to load image for {trainer.TrainerId}: {ex.Message}");
+                    }
+                }
                 Trainers.Add(trainer);
             }
 
@@ -118,6 +131,18 @@ public partial class TrainerPageViewModel : ObservableObject
 
             foreach (var trainer in result.Items)
             {
+                // แปลง ImageData → ImageSource สำหรับ UI binding
+                if (trainer.ImageData != null && trainer.ImageData.Length > 0)
+                {
+                    try
+                    {
+                        trainer.ImageSource = await ImageHelper.CreateBitmapFromBytesAsync(trainer.ImageData);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Failed to load image for {trainer.TrainerId}: {ex.Message}");
+                    }
+                }
                 Trainers.Add(trainer);
             }
 

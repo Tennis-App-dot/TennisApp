@@ -8,69 +8,36 @@ using CommunityToolkit.Mvvm.Input;
 using TennisApp.Models;
 using TennisApp.Services;
 using TennisApp.Helpers;
-using TennisApp.Data;
 
 namespace TennisApp.Presentation.ViewModels;
 
 /// <summary>
 /// ViewModel สำหรับหน้าบันทึกการเข้าใช้งานสนาม (Court Usage Log Page)
-/// รองรับทั้งการเข้าใช้จากการจองล่วงหน้าและ Walk-in
+/// ศูนย์ควบคุม: ค้นหาจอง → Start/Stop/Extend + Walk-in + สถานะสนาม + ประวัติวันนี้
 /// </summary>
 public partial class CourtUsageLogPageViewModel : ObservableObject
 {
-    private readonly DatabaseService _databaseService;
+    private readonly DatabaseService _databaseService = null!;
 
     // ========================================================================
     // Collections
     // ========================================================================
 
-    /// <summary>
-    /// รายการบันทึกการใช้งานแบบเช่าทั้งหมด
-    /// </summary>
+    public ObservableCollection<CourtStatusItem> CourtStatuses { get; } = new();
+    public ObservableCollection<CourtItem> AvailableCourts { get; } = new();
+    public ObservableCollection<CourseItem> AvailableCourses { get; } = new();
     public ObservableCollection<PaidCourtUseLogItem> PaidUsageLogs { get; } = new();
-
-    /// <summary>
-    /// รายการบันทึกการใช้งานจากคอร์สทั้งหมด
-    /// </summary>
     public ObservableCollection<CourseCourtUseLogItem> CourseUsageLogs { get; } = new();
 
-    /// <summary>
-    /// รายการสนามที่พร้อมใช้งาน (court_status = 1)
-    /// </summary>
-    public ObservableCollection<CourtItem> AvailableCourts { get; } = new();
-
-    /// <summary>
-    /// รายการคอร์สที่เปิดสอน
-    /// </summary>
-    public ObservableCollection<CourseItem> AvailableCourses { get; } = new();
-
-    /// <summary>
-    /// รายการการจองแบบเช่า (สำหรับ search)
-    /// </summary>
-    public ObservableCollection<PaidCourtReservationItem> PaidReservations { get; } = new();
-
-    /// <summary>
-    /// รายการการจองคอร์ส (สำหรับ search)
-    /// </summary>
-    public ObservableCollection<CourseCourtReservationItem> CourseReservations { get; } = new();
-
-    /// <summary>
-    /// สถานะสนามทั้งหมด (real-time) สำหรับตารางด้านล่าง
-    /// </summary>
-    public ObservableCollection<CourtStatusItem> CourtStatuses { get; } = new();
-
     // ========================================================================
-    // Properties - Form Input
+    // Properties - Walk-in Form
     // ========================================================================
 
     [ObservableProperty]
     private string _reserveIdSearch = string.Empty;
 
     [ObservableProperty]
-    private string _usageType = "Paid"; // "Paid" or "Course"
-
-    [ObservableProperty]
-    private string _selectedReserveId = string.Empty;
+    private string _usageType = "Paid";
 
     [ObservableProperty]
     private string _selectedCourtId = string.Empty;
@@ -82,10 +49,10 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     private DateTime _usageDate = DateTime.Today;
 
     [ObservableProperty]
-    private TimeSpan _usageTime = TimeSpan.FromHours(8); // Default 08:00
+    private TimeSpan _usageTime = TimeSpan.FromHours(8);
 
     [ObservableProperty]
-    private double _usageDuration = 1.0; // Default 1 hour
+    private double _usageDuration = 1.0;
 
     [ObservableProperty]
     private string _customerName = string.Empty;
@@ -94,13 +61,16 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     private string _customerPhone = string.Empty;
 
     [ObservableProperty]
-    private int _calculatedPrice = 0;
+    private int _calculatedPrice;
 
     [ObservableProperty]
-    private bool _isFromReservation = false;
+    private bool _isFromReservation;
 
     [ObservableProperty]
     private bool _isWalkIn = true;
+
+    [ObservableProperty]
+    private string _selectedReserveId = string.Empty;
 
     // ========================================================================
     // Properties - Detail Card
@@ -110,21 +80,18 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     private CourtStatusItem? _selectedCourtStatus;
 
     [ObservableProperty]
-    private bool _isDetailCardVisible = false;
+    private bool _isDetailCardVisible;
 
     [ObservableProperty]
     private double _extendHours = 1.0;
 
     [ObservableProperty]
-    private int _endUsagePrice = 0;
+    private int _endUsagePrice;
 
     // ========================================================================
     // Display Properties
     // ========================================================================
 
-    /// <summary>
-    /// แสดงเวลาสิ้นสุดที่คาดการณ์
-    /// </summary>
     public string EstimatedEndTime
     {
         get
@@ -134,14 +101,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// แสดง/ซ่อนส่วนเลือกคอร์ส (สำหรับ Course Usage)
-    /// </summary>
     public bool IsCourseUsage => UsageType == "Course";
-
-    /// <summary>
-    /// แสดง/ซ่อนส่วนคำนวณราคา (สำหรับ Paid Usage)
-    /// </summary>
     public bool IsPaidUsage => UsageType == "Paid";
 
     // ========================================================================
@@ -150,238 +110,131 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
 
     public CourtUsageLogPageViewModel()
     {
-        System.Diagnostics.Debug.WriteLine("🎾 CourtUsageLogPageViewModel constructor เริ่มทำงาน");
-
         try
         {
-            _databaseService = new DatabaseService();
+            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
             _databaseService.EnsureInitialized();
-            System.Diagnostics.Debug.WriteLine("✅ DatabaseService สร้างสำเร็จ");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ CourtUsageLogPageViewModel constructor error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ CourtUsageLogPageViewModel error: {ex.Message}");
         }
     }
 
     // ========================================================================
-    // Load Data Commands
+    // Load Data
     // ========================================================================
 
-    /// <summary>
-    /// โหลดข้อมูลบันทึกการใช้งานทั้งหมด
-    /// </summary>
-    [RelayCommand]
-    public async Task LoadUsageLogsAsync()
-    {
-        try
-        {
-            _databaseService.EnsureInitialized();
-            System.Diagnostics.Debug.WriteLine("📥 LoadUsageLogsAsync เริ่มทำงาน...");
-
-            var paidLogsTask = _databaseService.PaidCourtUseLogs.GetAllAsync();
-            var courseLogsTask = _databaseService.CourseCourtUseLogs.GetAllAsync();
-
-            await Task.WhenAll(paidLogsTask, courseLogsTask);
-
-            var paidLogs = paidLogsTask.Result;
-            var courseLogs = courseLogsTask.Result;
-
-            PaidUsageLogs.Clear();
-            foreach (var log in paidLogs)
-            {
-                PaidUsageLogs.Add(log);
-            }
-
-            CourseUsageLogs.Clear();
-            foreach (var log in courseLogs)
-            {
-                CourseUsageLogs.Add(log);
-            }
-
-            System.Diagnostics.Debug.WriteLine($"✅ LoadUsageLogsAsync เสร็จสิ้น - Paid: {PaidUsageLogs.Count}, Course: {CourseUsageLogs.Count}");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading usage logs: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// โหลดรายการการจองทั้งหมด (สำหรับ search)
-    /// </summary>
-    [RelayCommand]
-    public async Task LoadReservationsAsync()
-    {
-        try
-        {
-            System.Diagnostics.Debug.WriteLine("📥 LoadReservationsAsync เริ่มทำงาน...");
-
-            var paidTask = _databaseService.PaidCourtReservations.GetAllReservationsAsync();
-            var courseTask = _databaseService.CourseCourtReservations.GetAllReservationsAsync();
-
-            await Task.WhenAll(paidTask, courseTask);
-
-            var paidReservations = paidTask.Result;
-            var courseReservations = courseTask.Result;
-
-            PaidReservations.Clear();
-            foreach (var reservation in paidReservations)
-            {
-                PaidReservations.Add(reservation);
-            }
-
-            CourseReservations.Clear();
-            foreach (var reservation in courseReservations)
-            {
-                CourseReservations.Add(reservation);
-            }
-
-            System.Diagnostics.Debug.WriteLine($"✅ LoadReservationsAsync เสร็จสิ้น");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading reservations: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// โหลดรายการสนามที่พร้อมใช้งาน
-    /// </summary>
     [RelayCommand]
     public async Task LoadAvailableCourtsAsync()
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("🎾 LoadAvailableCourtsAsync เริ่มทำงาน...");
-
             var courts = await _databaseService.Courts.GetCourtsByStatusAsync("1");
-
             AvailableCourts.Clear();
-            foreach (var court in courts)
-            {
-                AvailableCourts.Add(court);
-            }
-
-            System.Diagnostics.Debug.WriteLine($"✅ LoadAvailableCourtsAsync เสร็จสิ้น");
+            foreach (var c in courts) AvailableCourts.Add(c);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading courts: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ LoadAvailableCourts: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// โหลดรายการคอร์สที่เปิดสอน
-    /// </summary>
     [RelayCommand]
     public async Task LoadAvailableCoursesAsync()
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("📚 LoadAvailableCoursesAsync เริ่มทำงาน...");
-
             var courses = await _databaseService.Courses.GetAllCoursesAsync();
-
             AvailableCourses.Clear();
-            foreach (var course in courses)
-            {
-                AvailableCourses.Add(course);
-            }
-
-            System.Diagnostics.Debug.WriteLine($"✅ LoadAvailableCoursesAsync เสร็จสิ้น");
+            foreach (var c in courses) AvailableCourses.Add(c);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading courses: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ LoadAvailableCourses: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    public async Task LoadUsageLogsAsync()
+    {
+        try
+        {
+            var paidLogs = await _databaseService.PaidCourtUseLogs.GetAllAsync();
+            var courseLogs = await _databaseService.CourseCourtUseLogs.GetAllAsync();
+
+            PaidUsageLogs.Clear();
+            foreach (var l in paidLogs) PaidUsageLogs.Add(l);
+
+            CourseUsageLogs.Clear();
+            foreach (var l in courseLogs) CourseUsageLogs.Add(l);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ LoadUsageLogs: {ex.Message}");
         }
     }
 
     // ========================================================================
-    // Court Status - Real-time
+    // Court Status — Real-time (ดูจาก Reservation ที่ status=in_use วันนี้)
     // ========================================================================
 
-    /// <summary>
-    /// โหลดสถานะสนามทั้งหมด: ดูจาก Court + UseLog วันนี้ที่ยัง in_use
-    /// </summary>
     [RelayCommand]
     public async Task LoadCourtStatusesAsync()
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine("🏟️ LoadCourtStatusesAsync เริ่มทำงาน...");
-
-            var courtsTask = _databaseService.Courts.GetCourtsByStatusAsync("1");
-            var paidLogsTask = _databaseService.PaidCourtUseLogs.GetAllAsync();
-            var courseLogsTask = _databaseService.CourseCourtUseLogs.GetAllAsync();
-
-            await Task.WhenAll(courtsTask, paidLogsTask, courseLogsTask);
-
-            var courts = courtsTask.Result;
-            var paidLogs = paidLogsTask.Result;
-            var courseLogs = courseLogsTask.Result;
-
+            var courts = await _databaseService.Courts.GetCourtsByStatusAsync("1");
             var today = DateTime.Today;
+
+            var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(today);
+            var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(today);
 
             CourtStatuses.Clear();
 
             foreach (var court in courts)
             {
-                var status = new CourtStatusItem
-                {
-                    CourtId = court.CourtID,
-                    IsInUse = false
-                };
+                var status = new CourtStatusItem { CourtId = court.CourtID, IsInUse = false };
 
-                // ตรวจสอบ Paid UseLog ที่ยัง in_use (status = "in_use") วันนี้
-                var activePaidLog = paidLogs.FirstOrDefault(l =>
-                    l.CourtId == court.CourtID &&
-                    l.LogStatus == "in_use" &&
-                    l.CheckInTime.Date == today);
+                var activePaid = paidRes.FirstOrDefault(r =>
+                    r.CourtId == court.CourtID && r.Status == "in_use");
 
-                if (activePaidLog != null)
+                if (activePaid != null)
                 {
                     status.IsInUse = true;
-                    status.UserName = activePaidLog.ReserveName;
-                    status.UserPhone = activePaidLog.ReservePhone;
+                    status.UserName = activePaid.ReserveName;
+                    status.UserPhone = activePaid.ReservePhone;
                     status.UsageType = "Paid";
-                    status.StartTime = activePaidLog.ReserveTime;
-                    status.Duration = activePaidLog.LogDuration;
-                    status.Price = activePaidLog.LogPrice;
-                    status.LogId = activePaidLog.LogId;
-                    status.ReserveId = activePaidLog.ReserveId;
-                    status.LogStatus = activePaidLog.LogStatus;
+                    status.StartTime = activePaid.ReserveTime;
+                    status.Duration = activePaid.Duration;
+                    status.Price = activePaid.ActualPrice ?? 0;
+                    status.ReserveId = activePaid.ReserveId;
+                    status.LogStatus = "in_use";
                 }
 
-                // ตรวจสอบ Course UseLog ที่ยัง in_use วันนี้
-                var activeCourseLog = courseLogs.FirstOrDefault(l =>
-                    l.CourtId == court.CourtID &&
-                    l.LogStatus == "in_use" &&
-                    l.CheckInTime.Date == today);
+                var activeCourse = courseRes.FirstOrDefault(r =>
+                    r.CourtId == court.CourtID && r.Status == "in_use");
 
-                if (activeCourseLog != null)
+                if (activeCourse != null)
                 {
                     status.IsInUse = true;
-                    status.UserName = activeCourseLog.ReserveName;
-                    status.UserPhone = activeCourseLog.ReservePhone;
+                    status.UserName = activeCourse.ReserveName;
+                    status.UserPhone = activeCourse.ReservePhone;
                     status.UsageType = "Course";
-                    status.CourseTitle = activeCourseLog.ClassTitle;
-                    status.StartTime = activeCourseLog.ReserveTime;
-                    status.Duration = activeCourseLog.LogDuration;
+                    status.CourseTitle = activeCourse.ClassTitle;
+                    status.StartTime = activeCourse.ReserveTime;
+                    status.Duration = activeCourse.Duration;
                     status.Price = 0;
-                    status.LogId = activeCourseLog.LogId;
-                    status.ReserveId = activeCourseLog.ReserveId;
-                    status.LogStatus = activeCourseLog.LogStatus;
+                    status.ReserveId = activeCourse.ReserveId;
+                    status.LogStatus = "in_use";
                 }
 
                 CourtStatuses.Add(status);
             }
-
-            System.Diagnostics.Debug.WriteLine($"✅ LoadCourtStatusesAsync เสร็จสิ้น - {CourtStatuses.Count} สนาม, ใช้งาน: {CourtStatuses.Count(s => s.IsInUse)}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading court statuses: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ LoadCourtStatuses: {ex.Message}");
         }
     }
 
@@ -389,54 +242,40 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     // Search Reservation
     // ========================================================================
 
-    /// <summary>
-    /// ค้นหาการจองด้วยรหัส Reserve ID
-    /// </summary>
     [RelayCommand]
     public async Task<bool> SearchReservationAsync(string reserveId)
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"🔍 SearchReservationAsync: {reserveId}");
+            if (string.IsNullOrWhiteSpace(reserveId)) return false;
 
-            if (string.IsNullOrWhiteSpace(reserveId))
-                return false;
-
-            // Try Paid Reservation first
-            var paidReservation = await _databaseService.PaidCourtReservations
-                .GetReservationByIdAsync(reserveId);
-
-            if (paidReservation != null && paidReservation.Status == "booked")
+            var paid = await _databaseService.PaidCourtReservations.GetReservationByIdAsync(reserveId);
+            if (paid != null && paid.Status == "booked")
             {
                 UsageType = "Paid";
-                SelectedReserveId = paidReservation.ReserveId;
-                SelectedCourtId = paidReservation.CourtId;
-                UsageDate = paidReservation.ReserveDate;
-                UsageTime = paidReservation.ReserveTime;
-                UsageDuration = paidReservation.Duration;
-                CustomerName = paidReservation.ReserveName;
-                CustomerPhone = paidReservation.ReservePhone;
+                SelectedReserveId = paid.ReserveId;
+                UsageDate = paid.ReserveDate;
+                UsageTime = paid.ReserveTime;
+                UsageDuration = paid.Duration;
+                CustomerName = paid.ReserveName;
+                CustomerPhone = paid.ReservePhone;
                 IsFromReservation = true;
                 IsWalkIn = false;
                 CalculatedPrice = (int)(UsageDuration * 200);
                 return true;
             }
 
-            // Try Course Reservation
-            var courseReservation = await _databaseService.CourseCourtReservations
-                .GetReservationByIdAsync(reserveId);
-
-            if (courseReservation != null && courseReservation.Status == "booked")
+            var course = await _databaseService.CourseCourtReservations.GetReservationByIdAsync(reserveId);
+            if (course != null && course.Status == "booked")
             {
                 UsageType = "Course";
-                SelectedReserveId = courseReservation.ReserveId;
-                SelectedCourtId = courseReservation.CourtId;
-                SelectedCourseId = courseReservation.ClassId;
-                UsageDate = courseReservation.ReserveDate;
-                UsageTime = courseReservation.ReserveTime;
-                UsageDuration = courseReservation.Duration;
-                CustomerName = courseReservation.ReserveName;
-                CustomerPhone = courseReservation.ReservePhone;
+                SelectedReserveId = course.ReserveId;
+                SelectedCourseId = course.ClassId;
+                UsageDate = course.ReserveDate;
+                UsageTime = course.ReserveTime;
+                UsageDuration = course.Duration;
+                CustomerName = course.ReserveName;
+                CustomerPhone = course.ReservePhone;
                 IsFromReservation = true;
                 IsWalkIn = false;
                 return true;
@@ -446,72 +285,101 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error searching reservation: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ SearchReservation: {ex.Message}");
             return false;
         }
     }
 
     // ========================================================================
-    // Court Availability Check
+    // Court Conflict Check — ใช้ก่อนเช็คอินทุกครั้ง (ทั้งจองและ Walk-in)
     // ========================================================================
 
     /// <summary>
-    /// หาสนามที่ว่างในช่วงเวลาที่เลือก
+    /// ตรวจสอบว่าสนามที่เลือกมีการจอง/ใช้งานซ้อนทับหรือไม่
+    /// คืน null = ว่าง, คืน string = ข้อความ conflict
     /// </summary>
-    public async Task<List<CourtItem>> GetAvailableCourtsForTimeSlotAsync()
-    {
-        var availableCourts = new List<CourtItem>();
-
-        foreach (var court in AvailableCourts)
-        {
-            var isAvailable = await IsCourtAvailableAsync(court.CourtID, UsageDate, UsageTime, UsageDuration);
-            if (isAvailable)
-            {
-                availableCourts.Add(court);
-            }
-        }
-
-        return availableCourts;
-    }
-
-    /// <summary>
-    /// ตรวจสอบว่าสนามว่างในช่วงเวลาที่เลือกหรือไม่
-    /// </summary>
-    private async Task<bool> IsCourtAvailableAsync(string courtId, DateTime usageDate, TimeSpan usageTime, double duration)
+    public async Task<string?> CheckCourtConflictForCheckinAsync(
+        string courtId, DateTime date, TimeSpan startTime, double duration, string? excludeReserveId = null)
     {
         try
         {
-            var isPaidAvailable = await _databaseService.PaidCourtReservations
-                .IsCourtAvailableAsync(courtId, usageDate, usageTime, duration);
-            if (!isPaidAvailable) return false;
+            var endTime = startTime.Add(TimeSpan.FromHours(duration));
 
-            var isCourseAvailable = await _databaseService.CourseCourtReservations
-                .IsCourtAvailableAsync(courtId, usageDate, usageTime, duration);
-            return isCourseAvailable;
+            // Check Paid reservations
+            var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(date);
+            var paidConflict = paidRes.FirstOrDefault(r =>
+                r.CourtId == courtId &&
+                r.ReserveId != (excludeReserveId ?? "") &&
+                r.Status is "booked" or "in_use" &&
+                r.ReserveTime < endTime &&
+                r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
+
+            if (paidConflict != null)
+            {
+                var cEnd = paidConflict.ReserveTime.Add(TimeSpan.FromHours(paidConflict.Duration));
+                return $"สนาม {courtId} ไม่ว่าง!\n\n" +
+                       $"ชนกับ: {paidConflict.ReserveId}\n" +
+                       $"ผู้จอง: {paidConflict.ReserveName}\n" +
+                       $"เวลา: {paidConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
+                       $"สถานะ: {(paidConflict.Status == "in_use" ? "กำลังใช้งาน" : "จองแล้ว")}";
+            }
+
+            // Check Course reservations
+            var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(date);
+            var courseConflict = courseRes.FirstOrDefault(r =>
+                r.CourtId == courtId &&
+                r.ReserveId != (excludeReserveId ?? "") &&
+                r.Status is "booked" or "in_use" &&
+                r.ReserveTime < endTime &&
+                r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
+
+            if (courseConflict != null)
+            {
+                var cEnd = courseConflict.ReserveTime.Add(TimeSpan.FromHours(courseConflict.Duration));
+                return $"สนาม {courtId} ไม่ว่าง!\n\n" +
+                       $"ชนกับ: {courseConflict.ReserveId}\n" +
+                       $"คอร์ส: {courseConflict.ClassTitle}\n" +
+                       $"ผู้จอง: {courseConflict.ReserveName}\n" +
+                       $"เวลา: {courseConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
+                       $"สถานะ: {(courseConflict.Status == "in_use" ? "กำลังใช้งาน" : "จองแล้ว")}";
+            }
+
+            return null; // ว่าง!
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error checking court availability: {ex.Message}");
-            return false;
+            System.Diagnostics.Debug.WriteLine($"❌ CheckCourtConflict: {ex.Message}");
+            return null;
         }
     }
 
     // ========================================================================
-    // Log Usage (Check-in)
+    // Court Availability
     // ========================================================================
 
-    /// <summary>
-    /// บันทึกเข้าใช้งาน Paid — ถ้า Walk-in จะสร้าง Reservation อัตโนมัติ
-    /// UseLog status = "in_use" (ยังไม่ complete จนกว่าจะกดสิ้นสุด)
-    /// </summary>
+    public async Task<List<CourtItem>> GetAvailableCourtsForTimeSlotAsync()
+    {
+        var available = new List<CourtItem>();
+        foreach (var court in AvailableCourts)
+        {
+            var isPaidOk = await _databaseService.PaidCourtReservations
+                .IsCourtAvailableAsync(court.CourtID, UsageDate, UsageTime, UsageDuration);
+            var isCourseOk = await _databaseService.CourseCourtReservations
+                .IsCourtAvailableAsync(court.CourtID, UsageDate, UsageTime, UsageDuration);
+            if (isPaidOk && isCourseOk) available.Add(court);
+        }
+        return available;
+    }
+
+    // ========================================================================
+    // START — เริ่มใช้งาน
+    // ========================================================================
+
     [RelayCommand]
-    public async Task<bool> LogPaidUsageAsync()
+    public async Task<bool> StartPaidUsageAsync()
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"➕ LogPaidUsageAsync: {CustomerName}");
-
-            // Walk-in: สร้าง Reservation อัตโนมัติ
             if (IsWalkIn || string.IsNullOrEmpty(SelectedReserveId))
             {
                 var reserveId = await ReservationIdGenerator.GeneratePaidReservationIdAsync(_databaseService, DateTime.Now);
@@ -525,78 +393,38 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                     Duration = UsageDuration,
                     ReserveName = CustomerName,
                     ReservePhone = CustomerPhone,
-                    Status = "in_use"
+                    Status = "in_use",
+                    ActualStart = DateTime.Now
                 };
-
-                var reserveSuccess = await _databaseService.PaidCourtReservations.AddReservationAsync(reservation);
-                if (!reserveSuccess)
-                {
-                    System.Diagnostics.Debug.WriteLine("❌ สร้าง Reservation สำหรับ Walk-in ล้มเหลว");
+                if (!await _databaseService.PaidCourtReservations.AddReservationAsync(reservation))
                     return false;
-                }
-
                 SelectedReserveId = reserveId;
             }
             else
             {
-                // มีการจองอยู่แล้ว → เปลี่ยน status เป็น in_use + อัปเดต court_id ให้ตรงกับสนามที่เลือก
-                var reservation = await _databaseService.PaidCourtReservations
-                    .GetReservationByIdAsync(SelectedReserveId);
-                if (reservation != null)
-                {
-                    reservation.Status = "in_use";
-                    reservation.CourtId = SelectedCourtId;
-                    await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
-                }
+                var reservation = await _databaseService.PaidCourtReservations.GetReservationByIdAsync(SelectedReserveId);
+                if (reservation == null) return false;
+                reservation.Status = "in_use";
+                reservation.CourtId = SelectedCourtId;
+                reservation.ActualStart = DateTime.Now;
+                await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
             }
 
-            // สร้าง UseLog
-            var logId = await ReservationIdGenerator.GeneratePaidUseLogIdAsync(_databaseService, DateTime.Now);
-
-            var log = new PaidCourtUseLogItem
-            {
-                LogId = logId,
-                ReserveId = SelectedReserveId,
-                CourtId = SelectedCourtId,
-                CheckInTime = DateTime.Now,
-                LogDuration = UsageDuration,
-                LogPrice = CalculatedPrice,
-                LogStatus = "in_use",
-                ReserveName = CustomerName,
-                ReservePhone = CustomerPhone,
-                ReserveDate = UsageDate,
-                ReserveTime = UsageTime,
-                ReserveDuration = UsageDuration
-            };
-
-            var success = await _databaseService.PaidCourtUseLogs.InsertAsync(log);
-
-            if (success)
-            {
-                await LoadUsageLogsAsync();
-                await LoadCourtStatusesAsync();
-                System.Diagnostics.Debug.WriteLine($"✅ บันทึกเข้าใช้งาน (in_use) สำเร็จ: {logId}");
-            }
-
-            return success;
+            await LoadCourtStatusesAsync();
+            return true;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error logging paid usage: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ StartPaidUsage: {ex.Message}");
             return false;
         }
     }
 
-    /// <summary>
-    /// บันทึกเข้าใช้งาน Course — ถ้า Walk-in จะสร้าง Reservation อัตโนมัติ
-    /// </summary>
     [RelayCommand]
-    public async Task<bool> LogCourseUsageAsync()
+    public async Task<bool> StartCourseUsageAsync()
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"➕ LogCourseUsageAsync: {CustomerName}");
-
             if (IsWalkIn || string.IsNullOrEmpty(SelectedReserveId))
             {
                 var reserveId = await ReservationIdGenerator.GenerateCourseReservationIdAsync(_databaseService, DateTime.Now);
@@ -611,97 +439,130 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                     Duration = UsageDuration,
                     ReserveName = CustomerName,
                     ReservePhone = CustomerPhone,
-                    Status = "in_use"
+                    Status = "in_use",
+                    ActualStart = DateTime.Now
                 };
-
-                var reserveSuccess = await _databaseService.CourseCourtReservations.AddReservationAsync(reservation);
-                if (!reserveSuccess)
-                {
-                    System.Diagnostics.Debug.WriteLine("❌ สร้าง Course Reservation สำหรับ Walk-in ล้มเหลว");
+                if (!await _databaseService.CourseCourtReservations.AddReservationAsync(reservation))
                     return false;
-                }
-
                 SelectedReserveId = reserveId;
             }
             else
             {
-                // มีการจองอยู่แล้ว → เปลี่ยน status เป็น in_use + อัปเดต court_id ให้ตรงกับสนามที่เลือก
-                var reservation = await _databaseService.CourseCourtReservations
-                    .GetReservationByIdAsync(SelectedReserveId);
-                if (reservation != null)
+                var reservation = await _databaseService.CourseCourtReservations.GetReservationByIdAsync(SelectedReserveId);
+                if (reservation == null) return false;
+                reservation.Status = "in_use";
+                reservation.CourtId = SelectedCourtId;
+                reservation.ActualStart = DateTime.Now;
+                await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
+            }
+
+            await LoadCourtStatusesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ StartCourseUsage: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ========================================================================
+    // STOP — สิ้นสุดใช้งาน → completed + actual_end + INSERT UseLog
+    // ========================================================================
+
+    [RelayCommand]
+    public async Task<bool> EndUsageAsync()
+    {
+        if (SelectedCourtStatus == null) return false;
+
+        try
+        {
+            bool success = false;
+
+            if (SelectedCourtStatus.UsageType == "Paid")
+            {
+                var reservation = await _databaseService.PaidCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                if (reservation == null) return false;
+
+                reservation.Status = "completed";
+                reservation.ActualEnd = DateTime.Now;
+                reservation.ActualPrice = EndUsagePrice;
+                success = await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
+
+                if (success)
                 {
-                    reservation.Status = "in_use";
-                    reservation.CourtId = SelectedCourtId;
-                    await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
+                    var logId = await ReservationIdGenerator.GeneratePaidUseLogIdAsync(_databaseService, DateTime.Now);
+                    var log = new PaidCourtUseLogItem
+                    {
+                        LogId = logId,
+                        ReserveId = reservation.ReserveId,
+                        CourtId = reservation.CourtId,
+                        CheckInTime = reservation.ActualStart ?? DateTime.Now,
+                        LogDuration = reservation.Duration,
+                        LogPrice = EndUsagePrice,
+                        LogStatus = "completed",
+                        ReserveName = reservation.ReserveName,
+                        ReservePhone = reservation.ReservePhone,
+                        ReserveDate = reservation.ReserveDate,
+                        ReserveTime = reservation.ReserveTime,
+                        ReserveDuration = reservation.Duration
+                    };
+                    await _databaseService.PaidCourtUseLogs.InsertAsync(log);
+                }
+            }
+            else if (SelectedCourtStatus.UsageType == "Course")
+            {
+                var reservation = await _databaseService.CourseCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                if (reservation == null) return false;
+
+                reservation.Status = "completed";
+                reservation.ActualEnd = DateTime.Now;
+                success = await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
+
+                if (success)
+                {
+                    var logId = await ReservationIdGenerator.GenerateCourseUseLogIdAsync(_databaseService, DateTime.Now);
+                    var log = new CourseCourtUseLogItem
+                    {
+                        LogId = logId,
+                        ReserveId = reservation.ReserveId,
+                        CourtId = reservation.CourtId,
+                        ClassId = reservation.ClassId,
+                        CheckInTime = reservation.ActualStart ?? DateTime.Now,
+                        LogDuration = reservation.Duration,
+                        LogStatus = "completed",
+                        ReserveName = reservation.ReserveName,
+                        ReservePhone = reservation.ReservePhone,
+                        ReserveDate = reservation.ReserveDate,
+                        ReserveTime = reservation.ReserveTime,
+                        ClassTitle = reservation.ClassTitle
+                    };
+                    await _databaseService.CourseCourtUseLogs.InsertAsync(log);
                 }
             }
 
-            var logId = await ReservationIdGenerator.GenerateCourseUseLogIdAsync(_databaseService, DateTime.Now);
-
-            var log = new CourseCourtUseLogItem
-            {
-                LogId = logId,
-                ReserveId = SelectedReserveId,
-                CourtId = SelectedCourtId,
-                ClassId = SelectedCourseId,
-                CheckInTime = DateTime.Now,
-                LogDuration = UsageDuration,
-                LogStatus = "in_use",
-                ReserveName = CustomerName,
-                ReservePhone = CustomerPhone,
-                ReserveDate = UsageDate,
-                ReserveTime = UsageTime,
-                ClassTitle = AvailableCourses.FirstOrDefault(c => c.ClassId == SelectedCourseId)?.ClassTitle ?? ""
-            };
-
-            var success = await _databaseService.CourseCourtUseLogs.InsertAsync(log);
-
             if (success)
             {
-                await LoadUsageLogsAsync();
+                HideDetailCard();
                 await LoadCourtStatusesAsync();
-                System.Diagnostics.Debug.WriteLine($"✅ บันทึกเข้าใช้งาน Course (in_use) สำเร็จ: {logId}");
+                await LoadUsageLogsAsync();
             }
 
             return success;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error logging course usage: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ EndUsage: {ex.Message}");
             return false;
         }
     }
 
     // ========================================================================
-    // Detail Card Actions
+    // EXTEND — ขยายเวลา
     // ========================================================================
 
-    /// <summary>
-    /// แสดง Detail Card สำหรับสนามที่กำลังใช้งาน
-    /// </summary>
-    public void ShowDetailCard(CourtStatusItem courtStatus)
-    {
-        if (courtStatus == null || !courtStatus.IsInUse) return;
-
-        SelectedCourtStatus = courtStatus;
-        EndUsagePrice = courtStatus.Price;
-        ExtendHours = 1.0;
-        IsDetailCardVisible = true;
-    }
-
-    /// <summary>
-    /// ซ่อน Detail Card
-    /// </summary>
-    public void HideDetailCard()
-    {
-        IsDetailCardVisible = false;
-        SelectedCourtStatus = null;
-    }
-
-    /// <summary>
-    /// ตรวจสอบว่าการขยายเวลาจะชนกับการจองถัดไปในสนามเดียวกันหรือไม่
-    /// คืน null ถ้าไม่ชน, คืนข้อความถ้าชน
-    /// </summary>
     public async Task<string?> CheckExtendConflictAsync()
     {
         if (SelectedCourtStatus == null) return null;
@@ -714,54 +575,43 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             var newEndTime = startTime.Add(TimeSpan.FromHours(newDuration));
             var today = DateTime.Today;
 
-            // เช็คการจอง Paid ที่ชน (ยกเว้นตัวเอง) — ทั้ง booked และ in_use
-            var paidReservations = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(today);
-            var conflictPaid = paidReservations.FirstOrDefault(r =>
+            var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(today);
+            var conflict = paidRes.FirstOrDefault(r =>
                 r.CourtId == courtId &&
                 r.ReserveId != SelectedCourtStatus.ReserveId &&
-                (r.Status == "booked" || r.Status == "in_use") &&
+                r.Status is "booked" or "in_use" &&
                 r.ReserveTime < newEndTime &&
                 r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
 
-            if (conflictPaid != null)
+            if (conflict != null)
             {
-                var conflictEndTime = conflictPaid.ReserveTime.Add(TimeSpan.FromHours(conflictPaid.Duration));
-                return $"การขยายเวลาจะชนกับการจอง {conflictPaid.ReserveId}\n" +
-                       $"ผู้จอง: {conflictPaid.ReserveName}\n" +
-                       $"เวลา: {conflictPaid.ReserveTime:hh\\:mm} - {conflictEndTime:hh\\:mm}";
+                var end = conflict.ReserveTime.Add(TimeSpan.FromHours(conflict.Duration));
+                return $"ชนกับการจอง {conflict.ReserveId}\nผู้จอง: {conflict.ReserveName}\nเวลา: {conflict.ReserveTime:hh\\:mm} - {end:hh\\:mm}";
             }
 
-            // เช็คการจอง Course ที่ชน (ยกเว้นตัวเอง) — ทั้ง booked และ in_use
-            var courseReservations = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(today);
-            var conflictCourse = courseReservations.FirstOrDefault(r =>
+            var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(today);
+            var conflictC = courseRes.FirstOrDefault(r =>
                 r.CourtId == courtId &&
                 r.ReserveId != SelectedCourtStatus.ReserveId &&
-                (r.Status == "booked" || r.Status == "in_use") &&
+                r.Status is "booked" or "in_use" &&
                 r.ReserveTime < newEndTime &&
                 r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
 
-            if (conflictCourse != null)
+            if (conflictC != null)
             {
-                var conflictEndTime = conflictCourse.ReserveTime.Add(TimeSpan.FromHours(conflictCourse.Duration));
-                return $"การขยายเวลาจะชนกับการจองคอร์ส {conflictCourse.ReserveId}\n" +
-                       $"ผู้จอง: {conflictCourse.ReserveName}\n" +
-                       $"คอร์ส: {conflictCourse.ClassDisplayName}\n" +
-                       $"เวลา: {conflictCourse.ReserveTime:hh\\:mm} - {conflictEndTime:hh\\:mm}";
+                var end = conflictC.ReserveTime.Add(TimeSpan.FromHours(conflictC.Duration));
+                return $"ชนกับการจองคอร์ส {conflictC.ReserveId}\nผู้จอง: {conflictC.ReserveName}\nเวลา: {conflictC.ReserveTime:hh\\:mm} - {end:hh\\:mm}";
             }
 
-            return null; // ไม่ชน
+            return null;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error checking extend conflict: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ CheckExtendConflict: {ex.Message}");
             return null;
         }
     }
 
-    /// <summary>
-    /// ขยายระยะเวลาการใช้งาน
-    /// อัปเดตทั้ง UseLog.LogDuration และ Reservation.Duration ให้ตรงกัน
-    /// </summary>
     [RelayCommand]
     public async Task<bool> ExtendUsageTimeAsync()
     {
@@ -773,50 +623,32 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
 
             if (SelectedCourtStatus.UsageType == "Paid")
             {
-                var log = PaidUsageLogs.FirstOrDefault(l => l.LogId == SelectedCourtStatus.LogId);
-                if (log != null)
-                {
-                    log.LogDuration = newDuration;
-                    var success = await _databaseService.PaidCourtUseLogs.UpdateAsync(log);
-                    if (success)
-                    {
-                        // อัปเดต Reservation.Duration ให้ตรงกับ UseLog
-                        var reservation = await _databaseService.PaidCourtReservations
-                            .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
-                        if (reservation != null)
-                        {
-                            reservation.Duration = newDuration;
-                            await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
-                        }
+                var reservation = await _databaseService.PaidCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                if (reservation == null) return false;
 
-                        SelectedCourtStatus.Duration = newDuration;
-                        await LoadCourtStatusesAsync();
-                        return true;
-                    }
+                reservation.Duration = newDuration;
+                var success = await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
+                if (success)
+                {
+                    SelectedCourtStatus.Duration = newDuration;
+                    await LoadCourtStatusesAsync();
+                    return true;
                 }
             }
             else if (SelectedCourtStatus.UsageType == "Course")
             {
-                var log = CourseUsageLogs.FirstOrDefault(l => l.LogId == SelectedCourtStatus.LogId);
-                if (log != null)
-                {
-                    log.LogDuration = newDuration;
-                    var success = await _databaseService.CourseCourtUseLogs.UpdateAsync(log);
-                    if (success)
-                    {
-                        // อัปเดต Reservation.Duration ให้ตรงกับ UseLog
-                        var reservation = await _databaseService.CourseCourtReservations
-                            .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
-                        if (reservation != null)
-                        {
-                            reservation.Duration = newDuration;
-                            await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
-                        }
+                var reservation = await _databaseService.CourseCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                if (reservation == null) return false;
 
-                        SelectedCourtStatus.Duration = newDuration;
-                        await LoadCourtStatusesAsync();
-                        return true;
-                    }
+                reservation.Duration = newDuration;
+                var success = await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
+                if (success)
+                {
+                    SelectedCourtStatus.Duration = newDuration;
+                    await LoadCourtStatusesAsync();
+                    return true;
                 }
             }
 
@@ -824,75 +656,15 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error extending usage time: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ ExtendUsageTime: {ex.Message}");
             return false;
         }
     }
 
-    /// <summary>
-    /// สิ้นสุดการใช้งาน → status = "completed" + บันทึกค่าบริการ
-    /// </summary>
-    [RelayCommand]
-    public async Task<bool> EndUsageAsync()
-    {
-        if (SelectedCourtStatus == null) return false;
+    // ========================================================================
+    // CANCEL
+    // ========================================================================
 
-        try
-        {
-            bool success = false;
-
-            if (SelectedCourtStatus.UsageType == "Paid")
-            {
-                var log = PaidUsageLogs.FirstOrDefault(l => l.LogId == SelectedCourtStatus.LogId);
-                if (log != null)
-                {
-                    log.LogStatus = "completed";
-                    log.LogPrice = EndUsagePrice;
-                    success = await _databaseService.PaidCourtUseLogs.UpdateAsync(log);
-
-                    if (success)
-                    {
-                        await _databaseService.PaidCourtReservations.UpdateStatusAsync(
-                            SelectedCourtStatus.ReserveId, "completed");
-                    }
-                }
-            }
-            else if (SelectedCourtStatus.UsageType == "Course")
-            {
-                var log = CourseUsageLogs.FirstOrDefault(l => l.LogId == SelectedCourtStatus.LogId);
-                if (log != null)
-                {
-                    log.LogStatus = "completed";
-                    success = await _databaseService.CourseCourtUseLogs.UpdateAsync(log);
-
-                    if (success)
-                    {
-                        await _databaseService.CourseCourtReservations.UpdateStatusAsync(
-                            SelectedCourtStatus.ReserveId, "completed");
-                    }
-                }
-            }
-
-            if (success)
-            {
-                HideDetailCard();
-                await LoadCourtStatusesAsync();
-                await LoadUsageLogsAsync();
-                System.Diagnostics.Debug.WriteLine($"✅ สิ้นสุดการใช้งานสำเร็จ");
-            }
-
-            return success;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ Error ending usage: {ex.Message}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// ยกเลิกการใช้งาน → status = "cancelled"
-    /// </summary>
     [RelayCommand]
     public async Task<bool> CancelUsageAsync()
     {
@@ -904,33 +676,25 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
 
             if (SelectedCourtStatus.UsageType == "Paid")
             {
-                var log = PaidUsageLogs.FirstOrDefault(l => l.LogId == SelectedCourtStatus.LogId);
-                if (log != null)
+                var reservation = await _databaseService.PaidCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                if (reservation != null)
                 {
-                    log.LogStatus = "cancelled";
-                    log.LogPrice = 0;
-                    success = await _databaseService.PaidCourtUseLogs.UpdateAsync(log);
-
-                    if (success)
-                    {
-                        await _databaseService.PaidCourtReservations.UpdateStatusAsync(
-                            SelectedCourtStatus.ReserveId, "cancelled");
-                    }
+                    reservation.Status = "cancelled";
+                    reservation.ActualEnd = DateTime.Now;
+                    reservation.ActualPrice = 0;
+                    success = await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
                 }
             }
             else if (SelectedCourtStatus.UsageType == "Course")
             {
-                var log = CourseUsageLogs.FirstOrDefault(l => l.LogId == SelectedCourtStatus.LogId);
-                if (log != null)
+                var reservation = await _databaseService.CourseCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                if (reservation != null)
                 {
-                    log.LogStatus = "cancelled";
-                    success = await _databaseService.CourseCourtUseLogs.UpdateAsync(log);
-
-                    if (success)
-                    {
-                        await _databaseService.CourseCourtReservations.UpdateStatusAsync(
-                            SelectedCourtStatus.ReserveId, "cancelled");
-                    }
+                    reservation.Status = "cancelled";
+                    reservation.ActualEnd = DateTime.Now;
+                    success = await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
                 }
             }
 
@@ -938,55 +702,71 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             {
                 HideDetailCard();
                 await LoadCourtStatusesAsync();
-                await LoadUsageLogsAsync();
-                System.Diagnostics.Debug.WriteLine($"✅ ยกเลิกการใช้งานสำเร็จ");
             }
 
             return success;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error cancelling usage: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ CancelUsage: {ex.Message}");
             return false;
         }
     }
 
-    /// <summary>
-    /// อัปเดตบันทึกการใช้งานแบบเช่า (backward compatibility)
-    /// </summary>
-    [RelayCommand]
-    public async Task<bool> UpdatePaidUsageAsync(PaidCourtUseLogItem log)
+    // ========================================================================
+    // Detail Card
+    // ========================================================================
+
+    public void ShowDetailCard(CourtStatusItem courtStatus)
+    {
+        if (courtStatus == null || !courtStatus.IsInUse) return;
+
+        SelectedCourtStatus = courtStatus;
+        EndUsagePrice = courtStatus.Price;
+        ExtendHours = 1.0;
+        IsDetailCardVisible = true;
+    }
+
+    public void HideDetailCard()
+    {
+        IsDetailCardVisible = false;
+        SelectedCourtStatus = null;
+    }
+
+    // ========================================================================
+    // Load Reservations by Date (for Check-in tab)
+    // ========================================================================
+
+    public async Task<List<PaidCourtReservationItem>> LoadPaidReservationsByDateAsync(DateTime date)
     {
         try
         {
-            var success = await _databaseService.PaidCourtUseLogs.UpdateAsync(log);
-
-            if (success)
-            {
-                var existing = PaidUsageLogs.FirstOrDefault(l => l.LogId == log.LogId);
-                if (existing != null)
-                {
-                    var index = PaidUsageLogs.IndexOf(existing);
-                    PaidUsageLogs[index] = log;
-                }
-            }
-
-            return success;
+            return await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(date);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error updating paid usage: {ex.Message}");
-            return false;
+            System.Diagnostics.Debug.WriteLine($"❌ LoadPaidReservationsByDate: {ex.Message}");
+            return new List<PaidCourtReservationItem>();
+        }
+    }
+
+    public async Task<List<CourseCourtReservationItem>> LoadCourseReservationsByDateAsync(DateTime date)
+    {
+        try
+        {
+            return await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(date);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ LoadCourseReservationsByDate: {ex.Message}");
+            return new List<CourseCourtReservationItem>();
         }
     }
 
     // ========================================================================
-    // Helper Methods
+    // Helper
     // ========================================================================
 
-    /// <summary>
-    /// ล้างข้อมูลฟอร์ม
-    /// </summary>
     [RelayCommand]
     public void ClearForm()
     {
@@ -1004,10 +784,6 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         IsWalkIn = true;
     }
 
-    /// <summary>
-    /// คำนวณราคา (สำหรับ Paid Usage)
-    /// อัตรา: 200 บาท/ชั่วโมง (สามารถปรับได้)
-    /// </summary>
     [RelayCommand]
     public void CalculatePrice()
     {
@@ -1015,22 +791,12 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         CalculatedPrice = (int)(UsageDuration * pricePerHour);
     }
 
-    // ========================================================================
-    // Property Change Notifications
-    // ========================================================================
-
-    partial void OnUsageTimeChanged(TimeSpan value)
-    {
-        OnPropertyChanged(nameof(EstimatedEndTime));
-    }
+    partial void OnUsageTimeChanged(TimeSpan value) => OnPropertyChanged(nameof(EstimatedEndTime));
 
     partial void OnUsageDurationChanged(double value)
     {
         OnPropertyChanged(nameof(EstimatedEndTime));
-        if (IsPaidUsage)
-        {
-            CalculatePrice();
-        }
+        if (IsPaidUsage) CalculatePrice();
     }
 
     partial void OnUsageTypeChanged(string value)

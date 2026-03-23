@@ -19,7 +19,6 @@ public class CourtStatusItem : INotifyPropertyChanged
     private string _courseTitle = string.Empty;
     private TimeSpan _startTime;
     private double _duration;
-    private TimeSpan _endTime;
     private int _price;
     private string _logId = string.Empty;
     private string _reserveId = string.Empty;

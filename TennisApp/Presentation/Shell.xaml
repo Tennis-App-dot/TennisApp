@@ -6,10 +6,12 @@
 
     <Grid>
         <controls:NavigationView x:Name="NavView"
-                         PaneDisplayMode="Auto"
+                         PaneDisplayMode="LeftCompact"
                          IsPaneToggleButtonVisible="True"
                          IsSettingsVisible="False"
-                         IsPaneOpen="True"
+                         IsPaneOpen="False"
+                         CompactModeThresholdWidth="0"
+                         ExpandedModeThresholdWidth="9999"
                          ItemInvoked="NavView_ItemInvoked"
                          Loaded="NavView_Loaded">
             
@@ -92,11 +94,18 @@
                     <TextBlock Text="สมัครคอร์สเรียน" Foreground="Black"/>
                 </controls:NavigationViewItem>
 
-                <controls:NavigationViewItem Tag="Booking">
+                <controls:NavigationViewItem Tag="PaidBooking">
                     <controls:NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Calendar"/>
+                        <FontIcon Glyph="&#xE787;"/>
                     </controls:NavigationViewItem.Icon>
-                    <TextBlock Text="จองสนาม" Foreground="Black"/>
+                    <TextBlock Text="จองเช่าสนาม" Foreground="Black"/>
+                </controls:NavigationViewItem>
+
+                <controls:NavigationViewItem Tag="CourseBooking">
+                    <controls:NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE736;"/>
+                    </controls:NavigationViewItem.Icon>
+                    <TextBlock Text="จองสนามคอร์ส" Foreground="Black"/>
                 </controls:NavigationViewItem>
 
                 <controls:NavigationViewItem Tag="UsageLog">
@@ -125,8 +134,22 @@
                 </controls:NavigationViewItem>
             </controls:NavigationView.FooterMenuItems>
 
-            <!-- 🔹 พื้นที่แสดงเนื้อหา -->
-            <Frame x:Name="ContentFrame"/>
+            <!-- 🔹 พื้นที่แสดงเนื้อหา + InfoBar -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 🔔 Global InfoBar for notifications -->
+                <controls:InfoBar x:Name="GlobalInfoBar"
+                                  Grid.Row="0"
+                                  IsOpen="False"
+                                  IsClosable="True"
+                                  Margin="0"/>
+
+                <Frame x:Name="ContentFrame" Grid.Row="1"/>
+            </Grid>
         </controls:NavigationView>
     </Grid>
 </UserControl>

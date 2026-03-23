@@ -29,6 +29,11 @@ public class PaidCourtUseLogDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // ✅ Enable Foreign Key enforcement
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
         var createCommand = connection.CreateCommand();
         createCommand.CommandText = @"
             CREATE TABLE IF NOT EXISTS PaidCourtUseLog (
@@ -291,6 +296,12 @@ public class PaidCourtUseLogDao
         {
             await using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
+
+            // ✅ Enable Foreign Key enforcement
+            await using var pragmaCmd = connection.CreateCommand();
+            pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+            await pragmaCmd.ExecuteNonQueryAsync();
+
             await using var command = connection.CreateCommand();
             command.CommandText = sql;
             command.Parameters.AddWithValue("@log_id", logId);

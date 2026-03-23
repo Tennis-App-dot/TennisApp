@@ -21,60 +21,172 @@ public class CourseDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
+        // ─── Cleanup: ลบ trigger/table ที่ค้างจาก migration เก่า ───
+        CleanupStaleArtifacts(connection);
+
+        // ─── ตรวจสอบว่าตาราง Course เดิมมีอยู่หรือไม่ ───
+        var checkOld = connection.CreateCommand();
+        checkOld.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='Course'";
+        var hasOldTable = Convert.ToInt32(checkOld.ExecuteScalar()) > 0;
+
+        if (hasOldTable)
+        {
+            // ตรวจสอบว่าเป็น schema เก่า (PK = class_id เดี่ยว) หรือ schema ใหม่ (composite PK)
+            var checkSchema = connection.CreateCommand();
+            checkSchema.CommandText = "PRAGMA table_info(Course)";
+            bool hasTrainerIdInPK = false;
+
+            using var reader = checkSchema.ExecuteReader();
+            while (reader.Read())
+            {
+                var colName = reader.GetString(1);  // column name
+                var pk = reader.GetInt32(5);         // pk index (0 = not PK)
+                var notNull = reader.GetInt32(3);    // notnull
+
+                if (colName == "trainer_id")
+                {
+                    if (pk > 0) hasTrainerIdInPK = true;
+                }
+            }
+
+            if (!hasTrainerIdInPK)
+            {
+                // Schema เก่า → migrate: สร้างตารางใหม่ + ย้ายข้อมูล
+                System.Diagnostics.Debug.WriteLine("🔄 Migrating Course table to composite PK (class_id, trainer_id)...");
+                MigrateToCompositePK(connection);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("✅ Course table already has composite PK");
+            }
+        }
+        else
+        {
+            // ไม่มีตาราง → สร้างใหม่เลย
+            CreateCourseTable(connection);
+        }
+
+        System.Diagnostics.Debug.WriteLine("✅ Course table initialized");
+    }
+
+    /// <summary>
+    /// ลบ trigger และตาราง Course_old ที่อาจค้างอยู่จากการ migration เก่า
+    /// </summary>
+    private void CleanupStaleArtifacts(SqliteConnection connection)
+    {
+        try
+        {
+            // ลบ trigger ที่ reference Course_old (ถ้ามี)
+            var findTriggers = connection.CreateCommand();
+            findTriggers.CommandText = @"
+                SELECT name FROM sqlite_master 
+                WHERE type = 'trigger' 
+                AND sql LIKE '%Course_old%'
+            ";
+            var triggerNames = new List<string>();
+            using (var reader = findTriggers.ExecuteReader())
+            {
+                while (reader.Read())
+                    triggerNames.Add(reader.GetString(0));
+            }
+
+            foreach (var triggerName in triggerNames)
+            {
+                var dropTrigger = connection.CreateCommand();
+                dropTrigger.CommandText = $"DROP TRIGGER IF EXISTS [{triggerName}]";
+                dropTrigger.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine($"🧹 Dropped stale trigger: {triggerName}");
+            }
+
+            // ลบตาราง Course_old ถ้ายังค้างอยู่
+            var dropOld = connection.CreateCommand();
+            dropOld.CommandText = "DROP TABLE IF EXISTS Course_old";
+            dropOld.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ CleanupStaleArtifacts: {ex.Message}");
+        }
+    }
+
+    private void CreateCourseTable(SqliteConnection connection)
+    {
         var command = connection.CreateCommand();
         command.CommandText = @"
             CREATE TABLE IF NOT EXISTS Course (
-                class_id              TEXT(4) PRIMARY KEY NOT NULL,
+                class_id              TEXT(4) NOT NULL,
+                trainer_id            TEXT(9) NOT NULL,
                 class_title           TEXT(50) NOT NULL,
                 class_time            INTEGER NOT NULL,
-                class_duration        INTEGER NULL,
+                class_duration        INTEGER NULL DEFAULT 1,
                 class_rate            INTEGER NULL,
-                class_rate_per_time   INTEGER NULL,
-                class_rate_4          INTEGER NULL,
-                class_rate_8          INTEGER NULL,
-                class_rate_12         INTEGER NULL,
-                class_rate_16         INTEGER NULL,
-                class_rate_monthly    INTEGER NULL,
-                class_rate_night      INTEGER NULL,
-                trainer_id            TEXT(9) NULL,
                 created_date          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 last_updated          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (trainer_id) REFERENCES Trainer(trainer_id) ON DELETE SET NULL
+                PRIMARY KEY (class_id, trainer_id),
+                FOREIGN KEY (trainer_id) REFERENCES Trainer(trainer_id) ON DELETE CASCADE
             );
 
             CREATE INDEX IF NOT EXISTS IX_Course_Title ON Course(class_title);
             CREATE INDEX IF NOT EXISTS IX_Course_Trainer ON Course(trainer_id);
+            CREATE INDEX IF NOT EXISTS IX_Course_ClassId ON Course(class_id);
         ";
-
         command.ExecuteNonQuery();
 
-        // Migrate: add tier pricing columns if missing (for existing databases)
-        var migrationColumns = new[]
-        {
-            ("class_rate_per_time", "INTEGER NULL"),
-            ("class_rate_4", "INTEGER NULL"),
-            ("class_rate_8", "INTEGER NULL"),
-            ("class_rate_12", "INTEGER NULL"),
-            ("class_rate_16", "INTEGER NULL"),
-            ("class_rate_monthly", "INTEGER NULL"),
-            ("class_rate_night", "INTEGER NULL")
-        };
+        System.Diagnostics.Debug.WriteLine("✅ Created Course table with composite PK (class_id, trainer_id)");
+    }
 
-        foreach (var (colName, colType) in migrationColumns)
+    private void MigrateToCompositePK(SqliteConnection connection)
+    {
+        try
         {
+            // 1) Rename old table
+            var rename = connection.CreateCommand();
+            rename.CommandText = "ALTER TABLE Course RENAME TO Course_old";
+            rename.ExecuteNonQuery();
+
+            // 2) Create new table with composite PK
+            CreateCourseTable(connection);
+
+            // 3) Copy data (skip rows with NULL trainer_id — they can't be in composite PK)
+            var copy = connection.CreateCommand();
+            copy.CommandText = @"
+                INSERT OR IGNORE INTO Course (class_id, trainer_id, class_title, class_time, class_duration, class_rate, created_date, last_updated)
+                SELECT class_id, trainer_id, class_title, class_time, 
+                       COALESCE(class_duration, 1), COALESCE(class_rate, 0),
+                       COALESCE(created_date, CURRENT_TIMESTAMP), COALESCE(last_updated, CURRENT_TIMESTAMP)
+                FROM Course_old
+                WHERE trainer_id IS NOT NULL AND trainer_id != ''
+            ";
+            var copied = copy.ExecuteNonQuery();
+
+            // 4) Drop old table
+            var drop = connection.CreateCommand();
+            drop.CommandText = "DROP TABLE IF EXISTS Course_old";
+            drop.ExecuteNonQuery();
+
+            System.Diagnostics.Debug.WriteLine($"✅ Migration complete: {copied} courses migrated to composite PK");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Migration error: {ex.Message}");
+
+            // Rollback: restore old table if migration failed
             try
             {
-                var alterCmd = connection.CreateCommand();
-                alterCmd.CommandText = $"ALTER TABLE Course ADD COLUMN {colName} {colType}";
-                alterCmd.ExecuteNonQuery();
+                var restore = connection.CreateCommand();
+                restore.CommandText = @"
+                    DROP TABLE IF EXISTS Course;
+                    ALTER TABLE Course_old RENAME TO Course;
+                ";
+                restore.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine("⚠️ Rolled back to old Course table");
             }
-            catch (SqliteException)
-            {
-                // Column already exists — ignore
-            }
+            catch { /* ignore rollback errors */ }
         }
-
-        System.Diagnostics.Debug.WriteLine("✅ Course table initialized");
     }
 
     // ─── Shared SQL fragment ──────────────────────────────────
@@ -82,17 +194,15 @@ public class CourseDao
         c.class_id, c.class_title, c.class_time, c.class_duration, 
         c.class_rate, c.trainer_id,
         t.trainer_fname || ' ' || t.trainer_lname AS trainer_name,
-        c.class_rate_per_time, c.class_rate_4, c.class_rate_8,
-        c.class_rate_12, c.class_rate_16, c.class_rate_monthly,
-        c.class_rate_night, c.last_updated
+        c.last_updated
     ";
 
     private static CourseItem ReadCourseFromReader(SqliteDataReader reader)
     {
         DateTime? lastUpdated = null;
-        if (!reader.IsDBNull(14))
+        if (!reader.IsDBNull(7))
         {
-            try { lastUpdated = DateTime.Parse(reader.GetString(14)); }
+            try { lastUpdated = DateTime.Parse(reader.GetString(7)); }
             catch { /* ignore parse errors */ }
         }
 
@@ -100,20 +210,17 @@ public class CourseDao
             classId: reader.GetString(0),
             classTitle: reader.GetString(1),
             classTime: reader.GetInt32(2),
-            classDuration: reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
+            classDuration: reader.IsDBNull(3) ? 1 : reader.GetInt32(3),
             classRate: reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
-            trainerId: reader.IsDBNull(5) ? null : reader.GetString(5),
+            trainerId: reader.IsDBNull(5) ? "" : reader.GetString(5),
             trainerName: reader.IsDBNull(6) ? "" : reader.GetString(6),
-            classRatePerTime: reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
-            classRate4: reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
-            classRate8: reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
-            classRate12: reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
-            classRate16: reader.IsDBNull(11) ? 0 : reader.GetInt32(11),
-            classRateMonthly: reader.IsDBNull(12) ? 0 : reader.GetInt32(12),
-            classRateNight: reader.IsDBNull(13) ? 0 : reader.GetInt32(13),
             lastUpdated: lastUpdated
         );
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // READ
+    // ═══════════════════════════════════════════════════════════
 
     /// <summary>
     /// Get all courses with trainer information
@@ -130,7 +237,7 @@ public class CourseDao
             SELECT {SelectColumns}
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
-            ORDER BY c.class_id
+            ORDER BY c.class_id, c.trainer_id
         ";
 
         using var reader = await command.ExecuteReaderAsync();
@@ -144,7 +251,34 @@ public class CourseDao
     }
 
     /// <summary>
-    /// Get course by ID
+    /// Get course by composite key (class_id + trainer_id)
+    /// </summary>
+    public async Task<CourseItem?> GetCourseByKeyAsync(string classId, string trainerId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = $@"
+            SELECT {SelectColumns}
+            FROM Course c
+            LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
+            WHERE c.class_id = @class_id AND c.trainer_id = @trainer_id
+        ";
+        command.Parameters.AddWithValue("@class_id", classId);
+        command.Parameters.AddWithValue("@trainer_id", trainerId);
+
+        using var reader = await command.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return ReadCourseFromReader(reader);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Get course by class_id only (backward compatible — returns first match)
     /// </summary>
     public async Task<CourseItem?> GetCourseByIdAsync(string classId)
     {
@@ -157,6 +291,7 @@ public class CourseDao
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
             WHERE c.class_id = @class_id
+            LIMIT 1
         ";
         command.Parameters.AddWithValue("@class_id", classId);
 
@@ -170,42 +305,67 @@ public class CourseDao
     }
 
     /// <summary>
-    /// Add new course
+    /// Get all courses by class_id (may return multiple rows for different trainers)
+    /// </summary>
+    public async Task<List<CourseItem>> GetCoursesByClassIdAsync(string classId)
+    {
+        var courses = new List<CourseItem>();
+
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = $@"
+            SELECT {SelectColumns}
+            FROM Course c
+            LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
+            WHERE c.class_id = @class_id
+            ORDER BY c.trainer_id
+        ";
+        command.Parameters.AddWithValue("@class_id", classId);
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            courses.Add(ReadCourseFromReader(reader));
+        }
+
+        return courses;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // CREATE
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Add new course (composite PK: class_id + trainer_id)
     /// </summary>
     public async Task<bool> AddCourseAsync(CourseItem course)
     {
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
 
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
+
         var command = connection.CreateCommand();
         command.CommandText = @"
-            INSERT INTO Course (class_id, class_title, class_time, class_duration, class_rate, 
-                                class_rate_per_time, class_rate_4, class_rate_8, class_rate_12, 
-                                class_rate_16, class_rate_monthly, class_rate_night, trainer_id)
-            VALUES (@class_id, @class_title, @class_time, @class_duration, @class_rate,
-                    @class_rate_per_time, @class_rate_4, @class_rate_8, @class_rate_12,
-                    @class_rate_16, @class_rate_monthly, @class_rate_night, @trainer_id)
+            INSERT INTO Course (class_id, trainer_id, class_title, class_time, class_duration, class_rate)
+            VALUES (@class_id, @trainer_id, @class_title, @class_time, @class_duration, @class_rate)
         ";
 
         command.Parameters.AddWithValue("@class_id", course.ClassId);
+        command.Parameters.AddWithValue("@trainer_id", course.TrainerId);
         command.Parameters.AddWithValue("@class_title", course.ClassTitle);
         command.Parameters.AddWithValue("@class_time", course.ClassTime);
         command.Parameters.AddWithValue("@class_duration", course.ClassDuration);
         command.Parameters.AddWithValue("@class_rate", course.ClassRate);
-        command.Parameters.AddWithValue("@class_rate_per_time", course.ClassRatePerTime > 0 ? course.ClassRatePerTime : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_4", course.ClassRate4 > 0 ? course.ClassRate4 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_8", course.ClassRate8 > 0 ? course.ClassRate8 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_12", course.ClassRate12 > 0 ? course.ClassRate12 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_16", course.ClassRate16 > 0 ? course.ClassRate16 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_monthly", course.ClassRateMonthly > 0 ? course.ClassRateMonthly : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_night", course.ClassRateNight > 0 ? course.ClassRateNight : DBNull.Value);
-        command.Parameters.AddWithValue("@trainer_id", 
-            string.IsNullOrWhiteSpace(course.TrainerId) ? DBNull.Value : course.TrainerId);
 
         try
         {
             var result = await command.ExecuteNonQueryAsync();
-            System.Diagnostics.Debug.WriteLine($"✅ Added course: {course.ClassId}");
+            System.Diagnostics.Debug.WriteLine($"✅ Added course: {course.ClassId} + trainer {course.TrainerId}");
             return result > 0;
         }
         catch (SqliteException ex)
@@ -215,13 +375,101 @@ public class CourseDao
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // UPDATE
+    // ═══════════════════════════════════════════════════════════
+
     /// <summary>
-    /// Update existing course
+    /// Update existing course (composite PK: class_id + trainer_id)
+    /// Only trainer can be changed — class_id, rate, sessions are fixed
+    /// </summary>
+    public async Task<bool> UpdateCourseTrainerAsync(string classId, string oldTrainerId, string newTrainerId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
+
+        // Since trainer_id is part of PK, we need DELETE + INSERT
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // Get existing course data
+            var selectCmd = connection.CreateCommand();
+            selectCmd.CommandText = "SELECT class_title, class_time, class_duration, class_rate, created_date FROM Course WHERE class_id = @class_id AND trainer_id = @old_trainer_id";
+            selectCmd.Parameters.AddWithValue("@class_id", classId);
+            selectCmd.Parameters.AddWithValue("@old_trainer_id", oldTrainerId);
+
+            string? classTitle = null;
+            int classTime = 0, classDuration = 1, classRate = 0;
+            string? createdDate = null;
+
+            using (var reader = await selectCmd.ExecuteReaderAsync())
+            {
+                if (await reader.ReadAsync())
+                {
+                    classTitle = reader.GetString(0);
+                    classTime = reader.GetInt32(1);
+                    classDuration = reader.IsDBNull(2) ? 1 : reader.GetInt32(2);
+                    classRate = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                    createdDate = reader.IsDBNull(4) ? null : reader.GetString(4);
+                }
+            }
+
+            if (classTitle == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ Course not found: {classId} + {oldTrainerId}");
+                return false;
+            }
+
+            // Delete old row
+            var deleteCmd = connection.CreateCommand();
+            deleteCmd.CommandText = "DELETE FROM Course WHERE class_id = @class_id AND trainer_id = @old_trainer_id";
+            deleteCmd.Parameters.AddWithValue("@class_id", classId);
+            deleteCmd.Parameters.AddWithValue("@old_trainer_id", oldTrainerId);
+            await deleteCmd.ExecuteNonQueryAsync();
+
+            // Insert new row with new trainer_id
+            var insertCmd = connection.CreateCommand();
+            insertCmd.CommandText = @"
+                INSERT INTO Course (class_id, trainer_id, class_title, class_time, class_duration, class_rate, created_date, last_updated)
+                VALUES (@class_id, @new_trainer_id, @class_title, @class_time, @class_duration, @class_rate, @created_date, CURRENT_TIMESTAMP)
+            ";
+            insertCmd.Parameters.AddWithValue("@class_id", classId);
+            insertCmd.Parameters.AddWithValue("@new_trainer_id", newTrainerId);
+            insertCmd.Parameters.AddWithValue("@class_title", classTitle);
+            insertCmd.Parameters.AddWithValue("@class_time", classTime);
+            insertCmd.Parameters.AddWithValue("@class_duration", classDuration);
+            insertCmd.Parameters.AddWithValue("@class_rate", classRate);
+            insertCmd.Parameters.AddWithValue("@created_date", createdDate ?? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+
+            var result = await insertCmd.ExecuteNonQueryAsync();
+            transaction.Commit();
+
+            System.Diagnostics.Debug.WriteLine($"✅ Updated course trainer: {classId} ({oldTrainerId} → {newTrainerId})");
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            System.Diagnostics.Debug.WriteLine($"❌ Error updating course trainer: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Update existing course (backward compatible — updates by class_id + trainer_id)
     /// </summary>
     public async Task<bool> UpdateCourseAsync(CourseItem course)
     {
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
+
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
 
         var command = connection.CreateCommand();
         command.CommandText = @"
@@ -230,37 +478,21 @@ public class CourseDao
                 class_time = @class_time,
                 class_duration = @class_duration,
                 class_rate = @class_rate,
-                class_rate_per_time = @class_rate_per_time,
-                class_rate_4 = @class_rate_4,
-                class_rate_8 = @class_rate_8,
-                class_rate_12 = @class_rate_12,
-                class_rate_16 = @class_rate_16,
-                class_rate_monthly = @class_rate_monthly,
-                class_rate_night = @class_rate_night,
-                trainer_id = @trainer_id,
                 last_updated = CURRENT_TIMESTAMP
-            WHERE class_id = @class_id
+            WHERE class_id = @class_id AND trainer_id = @trainer_id
         ";
 
         command.Parameters.AddWithValue("@class_id", course.ClassId);
+        command.Parameters.AddWithValue("@trainer_id", course.TrainerId);
         command.Parameters.AddWithValue("@class_title", course.ClassTitle);
         command.Parameters.AddWithValue("@class_time", course.ClassTime);
         command.Parameters.AddWithValue("@class_duration", course.ClassDuration);
         command.Parameters.AddWithValue("@class_rate", course.ClassRate);
-        command.Parameters.AddWithValue("@class_rate_per_time", course.ClassRatePerTime > 0 ? course.ClassRatePerTime : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_4", course.ClassRate4 > 0 ? course.ClassRate4 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_8", course.ClassRate8 > 0 ? course.ClassRate8 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_12", course.ClassRate12 > 0 ? course.ClassRate12 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_16", course.ClassRate16 > 0 ? course.ClassRate16 : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_monthly", course.ClassRateMonthly > 0 ? course.ClassRateMonthly : DBNull.Value);
-        command.Parameters.AddWithValue("@class_rate_night", course.ClassRateNight > 0 ? course.ClassRateNight : DBNull.Value);
-        command.Parameters.AddWithValue("@trainer_id", 
-            string.IsNullOrWhiteSpace(course.TrainerId) ? DBNull.Value : course.TrainerId);
 
         try
         {
             var result = await command.ExecuteNonQueryAsync();
-            System.Diagnostics.Debug.WriteLine($"✅ Updated course: {course.ClassId}");
+            System.Diagnostics.Debug.WriteLine($"✅ Updated course: {course.ClassId} + {course.TrainerId}");
             return result > 0;
         }
         catch (SqliteException ex)
@@ -270,22 +502,31 @@ public class CourseDao
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // DELETE
+    // ═══════════════════════════════════════════════════════════
+
     /// <summary>
-    /// Delete course
+    /// Delete course by composite key (class_id + trainer_id)
     /// </summary>
-    public async Task<bool> DeleteCourseAsync(string classId)
+    public async Task<bool> DeleteCourseAsync(string classId, string trainerId)
     {
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
 
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
+
         var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM Course WHERE class_id = @class_id";
+        command.CommandText = "DELETE FROM Course WHERE class_id = @class_id AND trainer_id = @trainer_id";
         command.Parameters.AddWithValue("@class_id", classId);
+        command.Parameters.AddWithValue("@trainer_id", trainerId);
 
         try
         {
             var result = await command.ExecuteNonQueryAsync();
-            System.Diagnostics.Debug.WriteLine($"✅ Deleted course: {classId}");
+            System.Diagnostics.Debug.WriteLine($"✅ Deleted course: {classId} + {trainerId}");
             return result > 0;
         }
         catch (SqliteException ex)
@@ -296,7 +537,57 @@ public class CourseDao
     }
 
     /// <summary>
-    /// Check if course exists
+    /// Delete course by class_id only (backward compatible — deletes all trainers for this class_id)
+    /// </summary>
+    public async Task<bool> DeleteCourseAsync(string classId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM Course WHERE class_id = @class_id";
+        command.Parameters.AddWithValue("@class_id", classId);
+
+        try
+        {
+            var result = await command.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine($"✅ Deleted all courses with class_id: {classId} ({result} rows)");
+            return result > 0;
+        }
+        catch (SqliteException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Error deleting course: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EXISTS / COUNT
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Check if course exists by composite key
+    /// </summary>
+    public async Task<bool> CourseExistsAsync(string classId, string trainerId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM Course WHERE class_id = @class_id AND trainer_id = @trainer_id";
+        command.Parameters.AddWithValue("@class_id", classId);
+        command.Parameters.AddWithValue("@trainer_id", trainerId);
+
+        var count = Convert.ToInt32(await command.ExecuteScalarAsync());
+        return count > 0;
+    }
+
+    /// <summary>
+    /// Check if course exists by class_id only (backward compatible)
     /// </summary>
     public async Task<bool> CourseExistsAsync(string classId)
     {
@@ -312,6 +603,25 @@ public class CourseDao
     }
 
     /// <summary>
+    /// Get total course count
+    /// </summary>
+    public async Task<int> GetCourseCountAsync()
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM Course";
+
+        var count = Convert.ToInt32(await command.ExecuteScalarAsync());
+        return count;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SEARCH
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
     /// Search courses by keyword
     /// </summary>
     public async Task<List<CourseItem>> SearchCoursesAsync(string keyword, string searchField = "All")
@@ -322,7 +632,7 @@ public class CourseDao
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        
+
         var whereClause = searchField switch
         {
             "รหัสคอร์ส" => "c.class_id LIKE @keyword",
@@ -336,7 +646,7 @@ public class CourseDao
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
             WHERE {whereClause}
-            ORDER BY c.class_id
+            ORDER BY c.class_id, c.trainer_id
         ";
         command.Parameters.AddWithValue("@keyword", $"%{keyword}%");
 
@@ -392,7 +702,7 @@ public class CourseDao
             FROM Course c
             LEFT JOIN Trainer t ON c.trainer_id = t.trainer_id
             {whereClause}
-            ORDER BY c.class_id
+            ORDER BY c.class_id, c.trainer_id
         ";
 
         using var reader = await command.ExecuteReaderAsync();
@@ -419,7 +729,6 @@ public class CourseDao
             SELECT DISTINCT t.trainer_fname || ' ' || t.trainer_lname AS trainer_name
             FROM Course c
             INNER JOIN Trainer t ON c.trainer_id = t.trainer_id
-            WHERE c.trainer_id IS NOT NULL
             ORDER BY trainer_name
         ";
 
@@ -427,26 +736,9 @@ public class CourseDao
         while (await reader.ReadAsync())
         {
             if (!reader.IsDBNull(0))
-            {
                 names.Add(reader.GetString(0));
-            }
         }
 
         return names;
-    }
-
-    /// <summary>
-    /// Get total course count
-    /// </summary>
-    public async Task<int> GetCourseCountAsync()
-    {
-        using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync();
-
-        var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM Course";
-
-        var count = Convert.ToInt32(await command.ExecuteScalarAsync());
-        return count;
     }
 }

@@ -29,6 +29,11 @@ public class TraineeDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // ✅ Enable Foreign Key enforcement
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
         var createCommand = connection.CreateCommand();
         createCommand.CommandText = @"
             CREATE TABLE IF NOT EXISTS Trainee (
@@ -249,6 +254,11 @@ public class TraineeDao
     {
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
+
+        // ✅ Enable Foreign Key enforcement for CASCADE delete
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
 
         var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM Trainee WHERE trainee_id = @trainee_id";

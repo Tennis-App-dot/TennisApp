@@ -7,180 +7,296 @@
     xmlns:models="using:TennisApp.Models"
     xmlns:conv="using:TennisApp.Presentation"
     mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    Background="#F2F4F7">
 
     <Page.Resources>
-        <!-- ตัวแปลงสถานะ -->
         <conv:StatusTextConverter x:Key="StatusTextConverter"/>
         <conv:StatusBrushConverter x:Key="StatusBrushConverter"/>
     </Page.Resources>
 
-    <Grid Padding="20,16"
+    <Grid x:Name="RootGrid" Padding="16,14"
           HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch">
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="WindowSizeStates">
+                <VisualState x:Name="NarrowState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.Padding" Value="12,10"/>
+                        <Setter Target="HeaderTitle.FontSize" Value="22"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="600"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.Padding" Value="24,18"/>
+                        <Setter Target="HeaderTitle.FontSize" Value="26"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- หัวข้อ -->
-        <TextBlock Text="สนาม" FontSize="28" FontWeight="SemiBold"/>
+        <!-- ── Header ─────────────────────────────────────── -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- ตัวกรองรายการสนาม + ปุ่มเพิ่ม -->
-        <StackPanel Grid.Row="1" Spacing="16" Margin="0,16,0,12">
-            
-            <!-- ตัวกรองรายการสนาม -->
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                
-                <RadioButton x:Name="RadioAll" 
-                             Content="ทั้งหมด" 
-                             GroupName="FilterGroup"
-                             IsChecked="True"
-                             Checked="FilterRadio_Checked"/>
-                
-                <RadioButton x:Name="RadioActive" 
-                             Content="พร้อมใช้งาน" 
-                             GroupName="FilterGroup"
-                             Checked="FilterRadio_Checked"/>
-                
-                <RadioButton x:Name="RadioMaintenance" 
-                             Content="ปิดปรับปรุง" 
-                             GroupName="FilterGroup"
-                             Checked="FilterRadio_Checked"/>
+            <TextBlock x:Name="HeaderTitle"
+                       Text="จัดการพื้นที่สนาม"
+                       FontSize="26" FontWeight="ExtraBold"
+                       Foreground="#1A1A2E"
+                       VerticalAlignment="Center"/>
+
+            <Button x:Name="BtnAdd" Grid.Column="1"
+                    Click="BtnAdd_Click"
+                    Background="#6C2BD9" Foreground="White"
+                    Height="52" FontSize="16" FontWeight="Bold"
+                    Padding="28,0" CornerRadius="14"
+                    BorderThickness="0">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <FontIcon Glyph="&#xE710;" FontSize="18"/>
+                    <TextBlock Text="เพิ่มสนามใหม่" VerticalAlignment="Center"
+                               FontSize="16" FontWeight="Bold"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- ── ตัวกรอง (Border สี่เหลี่ยมมนนอก ปุ่มข้างในเป็น Border เปลี่ยนสี) ── -->
+        <Border Grid.Row="1"
+                Background="#FFFFFF"
+                CornerRadius="12"
+                Padding="4"
+                Margin="0,0,0,14"
+                HorizontalAlignment="Left"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <StackPanel x:Name="FilterPanel"
+                        Orientation="Horizontal" Spacing="0">
+
+                <!-- ทั้งหมด (ม่วง) -->
+                <Border x:Name="FilterAllBorder"
+                        Background="#6C2BD9"
+                        CornerRadius="8"
+                        Padding="0" Margin="2">
+                    <Button x:Name="FilterAll"
+                            Content="ทั้งหมด"
+                            Click="FilterButton_Click"
+                            Tag="all"
+                            MinWidth="88" Height="36"
+                            FontSize="14" FontWeight="SemiBold"
+                            Background="Transparent"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Padding="16,0"
+                            CornerRadius="8"
+                            HorizontalAlignment="Stretch"/>
+                </Border>
+
+                <!-- พร้อมใช้งาน (เขียว) -->
+                <Border x:Name="FilterActiveBorder"
+                        Background="Transparent"
+                        CornerRadius="8"
+                        Padding="0" Margin="2">
+                    <Button x:Name="FilterActive"
+                            Content="พร้อมใช้งาน"
+                            Click="FilterButton_Click"
+                            Tag="active"
+                            MinWidth="100" Height="36"
+                            FontSize="14" FontWeight="SemiBold"
+                            Background="Transparent"
+                            Foreground="#6B7280"
+                            BorderThickness="0"
+                            Padding="16,0"
+                            CornerRadius="8"
+                            HorizontalAlignment="Stretch"/>
+                </Border>
+
+                <!-- ปิดปรับปรุง (แดง) -->
+                <Border x:Name="FilterMaintenanceBorder"
+                        Background="Transparent"
+                        CornerRadius="8"
+                        Padding="0" Margin="2">
+                    <Button x:Name="FilterMaintenance"
+                            Content="ปิดปรับปรุง"
+                            Click="FilterButton_Click"
+                            Tag="maintenance"
+                            MinWidth="100" Height="36"
+                            FontSize="14" FontWeight="SemiBold"
+                            Background="Transparent"
+                            Foreground="#6B7280"
+                            BorderThickness="0"
+                            Padding="16,0"
+                            CornerRadius="8"
+                            HorizontalAlignment="Stretch"/>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ── รายการสนาม ─────────────────────────────────── -->
+        <Grid Grid.Row="2">
+            <StackPanel x:Name="EmptyState"
+                        Visibility="Collapsed"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Spacing="12">
+                <FontIcon Glyph="&#xE7C1;" FontSize="64" Foreground="#D1D5DB"/>
+                <TextBlock Text="ยังไม่มีข้อมูลสนาม"
+                           FontSize="18" Foreground="#9CA3AF"
+                           HorizontalAlignment="Center"
+                           FontWeight="Medium"/>
+                <TextBlock Text="กดปุ่ม &quot;เพิ่มสนามใหม่&quot; เพื่อเริ่มต้น"
+                           FontSize="14" Foreground="#D1D5DB"
+                           HorizontalAlignment="Center"/>
             </StackPanel>
 
-            <!-- ปุ่มเพิ่ม -->
-            <Button x:Name="BtnAdd"
-                    Content="เพิ่มสนามใหม่"
-                    Click="BtnAdd_Click"
-                    Background="#4B0082"
-                    Foreground="White"
-                    HorizontalAlignment="Stretch"
-                    Height="45"
-                    FontSize="16"
-                    FontWeight="SemiBold"/>
-        </StackPanel>
+            <ListView x:Name="ListHost"
+                      ItemsSource="{Binding Courts}"
+                      IsItemClickEnabled="False"
+                      SelectionMode="None"
+                      HorizontalAlignment="Stretch">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,0,0,12"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:CourtItem">
+                        <Border Background="White"
+                                CornerRadius="14"
+                                Padding="0"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                MinHeight="160">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-        <!-- รายการสนาม -->
-        <ListView Grid.Row="2"
-                  x:Name="ListHost"
-                  ItemsSource="{Binding Courts}"
-                  IsItemClickEnabled="False"
-                  SelectionMode="None"
-                  HorizontalAlignment="Stretch"
-                  VerticalAlignment="Stretch">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="models:CourtItem">
-                    <Border Background="#FFFFFF" 
-                            CornerRadius="12" 
-                            Padding="16" 
-                            Margin="0,0,0,16"
-                            BorderBrush="#E0E0E0"
-                            BorderThickness="1">
-                        <Grid ColumnSpacing="20" RowSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="280"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="240"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- รูปสนาม -->
-                            <Border CornerRadius="8">
-                                <Image Source="{x:Bind ImageSource, Mode=OneWay}" 
-                                       Height="160" 
-                                       Stretch="UniformToFill"/>
-                            </Border>
-
-                            <!-- ชื่อ + สถานะ -->
-                            <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
-                                <TextBlock Text="{x:Bind DisplayName}" 
-                                           FontSize="22" 
-                                           FontWeight="SemiBold"
-                                           Foreground="#333"/>
-                                <Border Padding="12,6"
-                                        CornerRadius="8"
-                                        Background="{x:Bind Status, Converter={StaticResource StatusBrushConverter}}"
-                                        HorizontalAlignment="Left"
-                                        Margin="0,4,0,0">
-                                    <TextBlock Foreground="White"
-                                               FontWeight="Medium"
-                                               FontSize="13"
-                                               Text="{x:Bind Status, Converter={StaticResource StatusTextConverter}}"/>
+                                <!-- รูปสนาม: ซ้าย (ขยายใหญ่) -->
+                                <Border Grid.Column="0"
+                                        CornerRadius="14,0,0,14"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Background="#E9ECEF">
+                                    <Grid>
+                                        <Image Source="{x:Bind ImageSource, Mode=OneWay}"
+                                               Stretch="UniformToFill"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                    </Grid>
                                 </Border>
-                            </StackPanel>
 
-                            <!-- วันที่ + ปุ่ม -->
-                            <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="12">
-                                <!-- วันที่ปรับปรุงล่าสุด -->
-                                <Border Background="White" 
-                                        CornerRadius="6" 
-                                        Padding="12,6"
-                                        BorderBrush="#E0E0E0"
-                                        BorderThickness="1"
-                                        HorizontalAlignment="Right">
-                                    <TextBlock Text="{x:Bind LastMaintenanceDateText}" 
-                                               FontSize="12" 
-                                               Foreground="#666"
-                                               TextAlignment="Right"/>
-                                </Border>
-                                
-                                <!-- ปุ่มแก้ไขและลบ -->
-                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                                    <Button Content="แก้ไข" 
-                                            Click="BtnEdit_Click" 
-                                            Tag="{x:Bind}"
-                                            Background="#2196F3"
-                                            Foreground="White"
-                                            CornerRadius="4"
-                                            Padding="16,8"
-                                            FontSize="13"/>
-                                    <Button Content="ลบ"   
-                                            Click="BtnDelete_Click" 
-                                            Tag="{x:Bind}"
-                                            Background="#F44336"
-                                            Foreground="White"
-                                            CornerRadius="4"
-                                            Padding="16,8"
-                                            FontSize="13"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+                                <!-- ข้อมูล + ปุ่ม: ขวา -->
+                                <Grid Grid.Column="1" Padding="20,16,20,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-        <!-- Debug Panel (เฉพาะ Debug build) -->
-        <StackPanel x:Name="DebugPanel" 
-                    Orientation="Horizontal" 
+                                    <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="12"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind DisplayName}"
+                                                       FontSize="22" FontWeight="Bold"
+                                                       Foreground="#1A1A2E"
+                                                       VerticalAlignment="Center"/>
+                                            <Border Padding="12,5"
+                                                    CornerRadius="20"
+                                                    Background="{x:Bind Status, Converter={StaticResource StatusBrushConverter}}"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Foreground="White"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Text="{x:Bind Status, Converter={StaticResource StatusTextConverter}}"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE787;" FontSize="13" Foreground="#9CA3AF"/>
+                                            <TextBlock Text="{x:Bind MaintenanceDateText}"
+                                                       FontSize="14" Foreground="#6B7280"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                Spacing="8"
+                                                VerticalAlignment="Center">
+                                        <Button Click="BtnEdit_Click"
+                                                Tag="{x:Bind}"
+                                                ToolTipService.ToolTip="แก้ไข"
+                                                Background="#EEF2FF"
+                                                Foreground="#6C2BD9"
+                                                CornerRadius="12"
+                                                Width="48" Height="48"
+                                                Padding="0"
+                                                BorderThickness="0">
+                                            <FontIcon Glyph="&#xE70F;" FontSize="18"/>
+                                        </Button>
+                                        <Button Click="BtnDelete_Click"
+                                                Tag="{x:Bind}"
+                                                ToolTipService.ToolTip="ลบ"
+                                                Background="#FEF2F2"
+                                                Foreground="#DC2626"
+                                                CornerRadius="12"
+                                                Width="48" Height="48"
+                                                Padding="0"
+                                                BorderThickness="0">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="18"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- Debug Panel -->
+        <StackPanel x:Name="DebugPanel"
+                    Grid.Row="3"
+                    Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="8"
-                    Margin="0,8,0,0">
-            
+                    Margin="0,8,0,8">
             <Button x:Name="BtnDebugTest"
                     Content="Test DB"
                     Click="BtnDebugTest_Click"
-                    Background="Orange"
-                    Foreground="White"
-                    FontSize="12"
-                    Padding="8,4"/>
-            
+                    Background="Orange" Foreground="White"
+                    FontSize="12" Padding="8,4"/>
             <Button x:Name="BtnResetDatabase"
                     Content="Reset DB"
                     Click="BtnResetDatabase_Click"
-                    Background="Red"
-                    Foreground="White"
-                    FontSize="12"
-                    Padding="8,4"/>
-            
+                    Background="Red" Foreground="White"
+                    FontSize="12" Padding="8,4"/>
             <Button x:Name="BtnCheckDatabase"
                     Content="Check DB"
                     Click="BtnCheckDatabase_Click"
-                    Background="Blue"
-                    Foreground="White"
-                    FontSize="12"
-                    Padding="8,4"/>
+                    Background="Blue" Foreground="White"
+                    FontSize="12" Padding="8,4"/>
+            <Button x:Name="BtnClearData"
+                    Content="Clear Data"
+                    Click="BtnClearData_Click"
+                    Background="#FF6F00" Foreground="White"
+                    FontSize="12" Padding="8,4"/>
         </StackPanel>
     </Grid>
 </Page>

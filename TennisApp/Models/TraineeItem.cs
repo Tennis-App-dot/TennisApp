@@ -152,6 +152,8 @@ public class TraineeItem : INotifyPropertyChanged
     // Computed properties
     public string FullName => $"{FirstName} {LastName}";
 
+    public bool HasNickname => !string.IsNullOrWhiteSpace(Nickname);
+
     public int? Age
     {
         get

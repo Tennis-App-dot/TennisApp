@@ -6,12 +6,14 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using TennisApp.Models;
 using TennisApp.Presentation.ViewModels;
+using TennisApp.Services;
 
 namespace TennisApp.Presentation.Pages;
 
 public sealed partial class BookingPage : Page
 {
     public BookingPageViewModel VM { get; } = new();
+    private NotificationService? _notify;
 
     public BookingPage()
     {
@@ -23,6 +25,7 @@ public sealed partial class BookingPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        _notify = NotificationService.GetFromPage(this);
     }
 
     private async void BookingPage_Loaded(object sender, RoutedEventArgs e)
@@ -39,7 +42,7 @@ public sealed partial class BookingPage : Page
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ BookingPage_Loaded error: {ex.Message}");
+            _notify?.ShowError($"โหลดข้อมูลล้มเหลว: {ex.Message}");
         }
     }
 
@@ -118,73 +121,88 @@ public sealed partial class BookingPage : Page
     private async void BtnDeletePaid_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not PaidCourtReservationItem item) return;
-        if (!await ShowConfirm("ยืนยันการลบ", $"ต้องการลบการจอง {item.ReserveId} ({item.ReserveName}) ใช่หรือไม่?")) return;
+
+        bool confirmed;
+        if (_notify != null)
+            confirmed = await _notify.ShowDeleteConfirmAsync(
+                $"การจอง {item.ReserveId} ({item.ReserveName})", this.XamlRoot!);
+        else
+            confirmed = await NotificationService.ConfirmAsync("ยืนยันการลบ",
+                $"ต้องการลบการจอง {item.ReserveId} ({item.ReserveName}) ใช่หรือไม่?", this.XamlRoot!);
+
+        if (!confirmed) return;
 
         if (await VM.DeletePaidReservationAsync(item.ReserveId))
-        { UpdateSummaryUI(); ApplyFilter(); }
+        {
+            UpdateSummaryUI(); ApplyFilter();
+            _notify?.ShowSuccess("ลบการจองเรียบร้อยแล้ว");
+        }
         else
-        { await ShowMessage("เกิดข้อผิดพลาด", "ไม่สามารถลบการจองได้"); }
+            _notify?.ShowError("ไม่สามารถลบการจองได้");
     }
 
     private async void BtnCancelPaid_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not PaidCourtReservationItem item) return;
-        if (item.Status != "booked") { await ShowMessage("ไม่สามารถดำเนินการ", "สถานะปัจจุบันไม่ใช่ 'จองแล้ว'"); return; }
-        if (!await ShowConfirm("ยืนยันยกเลิก", $"ยกเลิกการจอง {item.ReserveId}?")) return;
+
+        if (item.Status != "booked") { _notify?.ShowWarning("สถานะปัจจุบันไม่ใช่ 'จองแล้ว'"); return; }
+
+        bool confirmed;
+        if (_notify != null)
+            confirmed = await _notify.ShowConfirmAsync("ยืนยันยกเลิก", $"ยกเลิกการจอง {item.ReserveId}?", this.XamlRoot!);
+        else
+            confirmed = await NotificationService.ConfirmAsync("ยืนยันยกเลิก", $"ยกเลิกการจอง {item.ReserveId}?", this.XamlRoot!);
+
+        if (!confirmed) return;
 
         if (await VM.UpdatePaidStatusAsync(item.ReserveId, "cancelled"))
-        { UpdateSummaryUI(); ApplyFilter(); }
+        {
+            UpdateSummaryUI(); ApplyFilter();
+            _notify?.ShowSuccess("ยกเลิกการจองเรียบร้อยแล้ว");
+        }
     }
 
     private async void BtnDeleteCourse_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not CourseCourtReservationItem item) return;
-        if (!await ShowConfirm("ยืนยันการลบ", $"ต้องการลบการจอง {item.ReserveId} ({item.ReserveName}) ใช่หรือไม่?")) return;
+
+        bool confirmed;
+        if (_notify != null)
+            confirmed = await _notify.ShowDeleteConfirmAsync(
+                $"การจอง {item.ReserveId} ({item.ReserveName})", this.XamlRoot!);
+        else
+            confirmed = await NotificationService.ConfirmAsync("ยืนยันการลบ",
+                $"ต้องการลบการจอง {item.ReserveId} ({item.ReserveName}) ใช่หรือไม่?", this.XamlRoot!);
+
+        if (!confirmed) return;
 
         if (await VM.DeleteCourseReservationAsync(item.ReserveId))
-        { UpdateSummaryUI(); ApplyFilter(); }
+        {
+            UpdateSummaryUI(); ApplyFilter();
+            _notify?.ShowSuccess("ลบการจองเรียบร้อยแล้ว");
+        }
         else
-        { await ShowMessage("เกิดข้อผิดพลาด", "ไม่สามารถลบการจองได้"); }
+            _notify?.ShowError("ไม่สามารถลบการจองได้");
     }
 
     private async void BtnCancelCourse_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not CourseCourtReservationItem item) return;
-        if (item.Status != "booked") { await ShowMessage("ไม่สามารถดำเนินการ", "สถานะปัจจุบันไม่ใช่ 'จองแล้ว'"); return; }
-        if (!await ShowConfirm("ยืนยันยกเลิก", $"ยกเลิกการจอง {item.ReserveId}?")) return;
+
+        if (item.Status != "booked") { _notify?.ShowWarning("สถานะปัจจุบันไม่ใช่ 'จองแล้ว'"); return; }
+
+        bool confirmed;
+        if (_notify != null)
+            confirmed = await _notify.ShowConfirmAsync("ยืนยันยกเลิก", $"ยกเลิกการจอง {item.ReserveId}?", this.XamlRoot!);
+        else
+            confirmed = await NotificationService.ConfirmAsync("ยืนยันยกเลิก", $"ยกเลิกการจอง {item.ReserveId}?", this.XamlRoot!);
+
+        if (!confirmed) return;
 
         if (await VM.UpdateCourseStatusAsync(item.ReserveId, "cancelled"))
-        { UpdateSummaryUI(); ApplyFilter(); }
-    }
-
-    // ========================================================================
-    // Dialog Helpers
-    // ========================================================================
-
-    private async Task ShowMessage(string title, string content)
-    {
-        var dialog = new ContentDialog
         {
-            Title = title,
-            Content = content,
-            PrimaryButtonText = "ตกลง",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
-        };
-        await dialog.ShowAsync();
-    }
-
-    private async Task<bool> ShowConfirm(string title, string content)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = content,
-            PrimaryButtonText = "ยืนยัน",
-            SecondaryButtonText = "ยกเลิก",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+            UpdateSummaryUI(); ApplyFilter();
+            _notify?.ShowSuccess("ยกเลิกการจองเรียบร้อยแล้ว");
+        }
     }
 }

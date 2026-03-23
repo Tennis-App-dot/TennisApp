@@ -86,7 +86,6 @@ public sealed partial class ReservationFormDialog : ContentDialog
 
     private readonly List<CourtItem> _availableCourts;
     private readonly List<CourseItem> _availableCourses;
-    private readonly bool _isEditMode;
 
     // ========================================================================
     // Constructor (Add Mode)
@@ -101,7 +100,6 @@ public sealed partial class ReservationFormDialog : ContentDialog
 
         _availableCourts = courts ?? new List<CourtItem>();
         _availableCourses = courses ?? new List<CourseItem>();
-        _isEditMode = false;
 
         InitializeComboBoxes();
         SetDefaultValues();
@@ -122,7 +120,6 @@ public sealed partial class ReservationFormDialog : ContentDialog
 
         _availableCourts = courts ?? new List<CourtItem>();
         _availableCourses = new List<CourseItem>();
-        _isEditMode = true;
 
         InitializeComboBoxes();
         LoadPaidReservationData(reservation);
@@ -139,7 +136,6 @@ public sealed partial class ReservationFormDialog : ContentDialog
 
         _availableCourts = courts ?? new List<CourtItem>();
         _availableCourses = courses ?? new List<CourseItem>();
-        _isEditMode = true;
 
         InitializeComboBoxes();
         LoadCourseReservationData(reservation);

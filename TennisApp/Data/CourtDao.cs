@@ -30,14 +30,22 @@ public class CourtDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
+        // ─── Cleanup: ลบ trigger ที่ค้างจาก migration เก่า ───
+        CleanupStaleTriggers(connection);
+
         var createCommand = connection.CreateCommand();
         createCommand.CommandText = @"
             -- Main Court table (Official Schema)
             CREATE TABLE IF NOT EXISTS Court (
-                court_id      TEXT(2) PRIMARY KEY NOT NULL,
-                court_img     BLOB NULL,
-                court_status  TEXT(1) NOT NULL DEFAULT '1',
-                last_updated  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                court_id         TEXT(2) PRIMARY KEY NOT NULL,
+                court_img        BLOB NULL,
+                court_status     TEXT(1) NOT NULL DEFAULT '1',
+                maintenance_date DATE NULL,
+                last_updated     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
             -- Performance indexes
@@ -47,6 +55,20 @@ public class CourtDao
         createCommand.ExecuteNonQuery();
         
         System.Diagnostics.Debug.WriteLine("✅ สร้างตารางเสร็จ");
+
+        // Migrate: เพิ่ม maintenance_date ถ้ายังไม่มี (สำหรับ DB เก่า)
+        try
+        {
+            var migrateCmd = connection.CreateCommand();
+            migrateCmd.CommandText = "ALTER TABLE Court ADD COLUMN maintenance_date DATE NULL";
+            migrateCmd.ExecuteNonQuery();
+            System.Diagnostics.Debug.WriteLine("✅ Migration: เพิ่มคอลัมน์ maintenance_date สำเร็จ");
+        }
+        catch (SqliteException)
+        {
+            // คอลัมน์มีอยู่แล้ว — ไม่ต้องทำอะไร
+            System.Diagnostics.Debug.WriteLine("✅ คอลัมน์ maintenance_date มีอยู่แล้ว");
+        }
 
         // ✅ เพิ่มสนาม dummy "00" สำหรับการจองที่ยังไม่ได้จัดสรรสนาม (ต้องทำก่อน PaidCourtReservation)
         System.Diagnostics.Debug.WriteLine("🔍 ตรวจสอบสนาม dummy '00'...");
@@ -59,8 +81,8 @@ public class CourtDao
         {
             var insertDummyCommand = connection.CreateCommand();
             insertDummyCommand.CommandText = @"
-                INSERT INTO Court (court_id, court_img, court_status, last_updated)
-                VALUES ('00', NULL, '0', CURRENT_TIMESTAMP)
+                INSERT INTO Court (court_id, court_img, court_status, maintenance_date, last_updated)
+                VALUES ('00', NULL, '0', NULL, CURRENT_TIMESTAMP)
             ";
             insertDummyCommand.ExecuteNonQuery();
             
@@ -80,6 +102,40 @@ public class CourtDao
     }
 
     /// <summary>
+    /// ลบ trigger ที่ reference ตารางเก่า (เช่น Course_old) ซึ่งค้างจาก migration
+    /// </summary>
+    private void CleanupStaleTriggers(SqliteConnection connection)
+    {
+        try
+        {
+            var findTriggers = connection.CreateCommand();
+            findTriggers.CommandText = @"
+                SELECT name FROM sqlite_master 
+                WHERE type = 'trigger' 
+                AND sql LIKE '%_old%'
+            ";
+            var triggerNames = new List<string>();
+            using (var reader = findTriggers.ExecuteReader())
+            {
+                while (reader.Read())
+                    triggerNames.Add(reader.GetString(0));
+            }
+
+            foreach (var triggerName in triggerNames)
+            {
+                var dropTrigger = connection.CreateCommand();
+                dropTrigger.CommandText = $"DROP TRIGGER IF EXISTS [{triggerName}]";
+                dropTrigger.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine($"🧹 CourtDao: Dropped stale trigger: {triggerName}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ CourtDao CleanupStaleTriggers: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// ดึงข้อมูลสนามทั้งหมด (ไม่รวมสนาม dummy "00")
     /// </summary>
     public async Task<List<CourtItem>> GetAllCourtsAsync()
@@ -90,12 +146,16 @@ public class CourtDao
 
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
+
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
         
         System.Diagnostics.Debug.WriteLine("✅ Database connection เปิดสำเร็จ");
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-            SELECT court_id, court_img, court_status, last_updated
+            SELECT court_id, court_img, court_status, maintenance_date, last_updated
             FROM Court
             WHERE court_id != '00'
             ORDER BY court_id
@@ -113,12 +173,13 @@ public class CourtDao
             var courtId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
             var imageData = reader.IsDBNull(1) ? null : (byte[])reader.GetValue(1);
             var status = reader.IsDBNull(2) ? "1" : reader.GetString(2);
-            var lastUpdatedStr = reader.IsDBNull(3) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : reader.GetString(3);
+            var maintenanceDateStr = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var lastUpdatedStr = reader.IsDBNull(4) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : reader.GetString(4);
             
             System.Diagnostics.Debug.WriteLine($"   📋 Row {rowCount}: Court {courtId}, Status {status}, Updated: {lastUpdatedStr}");
             
             // ✅ ใช้ static factory method สำหรับสร้าง CourtItem จาก database
-            var court = CourtItem.FromDatabase(courtId, imageData, status, lastUpdatedStr);
+            var court = CourtItem.FromDatabase(courtId, imageData, status, maintenanceDateStr, lastUpdatedStr);
             court.ImagePath = GetImagePathFromData(imageData);
             
             courts.Add(court);
@@ -140,9 +201,13 @@ public class CourtDao
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
 
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+
         var command = connection.CreateCommand();
         command.CommandText = @"
-            SELECT court_id, court_img, court_status, last_updated
+            SELECT court_id, court_img, court_status, maintenance_date, last_updated
             FROM Court
             WHERE court_status = @status AND court_id != '00'
             ORDER BY court_id
@@ -155,10 +220,11 @@ public class CourtDao
             var courtId = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
             var imageData = reader.IsDBNull(1) ? null : (byte[])reader.GetValue(1);
             var courtStatus = reader.IsDBNull(2) ? "1" : reader.GetString(2);
-            var lastUpdatedStr = reader.IsDBNull(3) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : reader.GetString(3);
+            var maintenanceDateStr = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var lastUpdatedStr = reader.IsDBNull(4) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : reader.GetString(4);
             
             // ✅ ใช้ static factory method
-            var court = CourtItem.FromDatabase(courtId, imageData, courtStatus, lastUpdatedStr);
+            var court = CourtItem.FromDatabase(courtId, imageData, courtStatus, maintenanceDateStr, lastUpdatedStr);
             court.ImagePath = GetImagePathFromData(imageData);
             
             courts.Add(court);
@@ -172,52 +238,39 @@ public class CourtDao
     /// </summary>
     public async Task<bool> AddCourtAsync(CourtItem court)
     {
-        System.Diagnostics.Debug.WriteLine($"🗄️ CourtDao.AddCourtAsync เริ่มทำงาน");
-        System.Diagnostics.Debug.WriteLine($"   CourtID: {court.CourtID}");
-        System.Diagnostics.Debug.WriteLine($"   Status: {court.Status}");
-        System.Diagnostics.Debug.WriteLine($"   LastUpdated: {court.LastUpdated:yyyy-MM-dd HH:mm:ss}");
-        System.Diagnostics.Debug.WriteLine($"   ImageData: {court.ImageData?.Length ?? 0} bytes");
+        System.Diagnostics.Debug.WriteLine($"🗄️ CourtDao.AddCourtAsync: ID={court.CourtID}, Status={court.Status}");
         
         await using var connection = new SqliteConnection(_connectionString);
         
         try
         {
             await connection.OpenAsync().ConfigureAwait(false);
-            System.Diagnostics.Debug.WriteLine("✅ Database connection เปิดสำเร็จ");
+
+            var pragmaCmd = connection.CreateCommand();
+            pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+            await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
 
             var command = connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO Court (court_id, court_img, court_status, last_updated)
-                VALUES (@court_id, @court_img, @court_status, @last_updated)
+                INSERT INTO Court (court_id, court_img, court_status, maintenance_date, last_updated)
+                VALUES (@court_id, @court_img, @court_status, @maintenance_date, @last_updated)
             ";
 
             command.Parameters.AddWithValue("@court_id", court.CourtID);
             command.Parameters.AddWithValue("@court_img", court.ImageData ?? (object)DBNull.Value);
             command.Parameters.AddWithValue("@court_status", court.Status);
-            command.Parameters.AddWithValue("@last_updated", court.LastUpdatedForDatabase);
-
-            System.Diagnostics.Debug.WriteLine($"🔧 SQL: {command.CommandText}");
-            System.Diagnostics.Debug.WriteLine($"📋 Parameters: court_id={court.CourtID}, court_status={court.Status}, last_updated={court.LastUpdatedForDatabase}");
+            command.Parameters.AddWithValue("@maintenance_date", 
+                court.MaintenanceDate == default ? (object)DBNull.Value : court.MaintenanceDate.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@last_updated", court.LastUpdated.ToString("yyyy-MM-dd HH:mm:ss"));
 
             var result = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
             
-            System.Diagnostics.Debug.WriteLine($"📈 Rows affected: {result}");
-            
-            bool success = result > 0;
-            System.Diagnostics.Debug.WriteLine($"🎯 AddCourtAsync result: {success}");
-            
-            return success;
-        }
-        catch (SqliteException sqlEx)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ SQLite Error: {sqlEx.Message}");
-            System.Diagnostics.Debug.WriteLine($"📍 SQLite ErrorCode: {sqlEx.SqliteErrorCode}");
-            return false;
+            System.Diagnostics.Debug.WriteLine($"🎯 AddCourtAsync result: {result > 0}");
+            return result > 0;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ General Error: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"📍 Stack trace: {ex.StackTrace}");
+            System.Diagnostics.Debug.WriteLine($"❌ AddCourtAsync Error: {ex.Message}");
             return false;
         }
     }
@@ -227,10 +280,7 @@ public class CourtDao
     /// </summary>
     public async Task<bool> UpdateCourtAsync(CourtItem court)
     {
-        System.Diagnostics.Debug.WriteLine($"🗄️ CourtDao.UpdateCourtAsync เริ่มทำงาน");
-        System.Diagnostics.Debug.WriteLine($"   CourtID: {court.CourtID}");
-        System.Diagnostics.Debug.WriteLine($"   Status: {court.Status}");
-        System.Diagnostics.Debug.WriteLine($"   LastUpdated: {court.LastUpdated:yyyy-MM-dd HH:mm:ss}");
+        System.Diagnostics.Debug.WriteLine($"🗄️ CourtDao.UpdateCourtAsync: ID={court.CourtID}, Status={court.Status}");
         
         await using var connection = new SqliteConnection(_connectionString);
         
@@ -238,41 +288,36 @@ public class CourtDao
         {
             await connection.OpenAsync().ConfigureAwait(false);
 
+            var pragmaCmd = connection.CreateCommand();
+            pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+            await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+
             var command = connection.CreateCommand();
             command.CommandText = @"
                 UPDATE Court
                 SET
-                    court_img    = @court_img,
-                    court_status = @court_status,
-                    last_updated = @last_updated
+                    court_img        = @court_img,
+                    court_status     = @court_status,
+                    maintenance_date = @maintenance_date,
+                    last_updated     = @last_updated
                 WHERE court_id = @court_id
             ";
 
             command.Parameters.AddWithValue("@court_id", court.CourtID);
             command.Parameters.AddWithValue("@court_img", court.ImageData ?? (object)DBNull.Value);
             command.Parameters.AddWithValue("@court_status", court.Status);
-            command.Parameters.AddWithValue("@last_updated", court.LastUpdatedForDatabase);
-
-            System.Diagnostics.Debug.WriteLine($"🔧 SQL: {command.CommandText}");
-            System.Diagnostics.Debug.WriteLine($"📋 Parameters: court_id={court.CourtID}, last_updated={court.LastUpdatedForDatabase}");
+            command.Parameters.AddWithValue("@maintenance_date",
+                court.MaintenanceDate == default ? (object)DBNull.Value : court.MaintenanceDate.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@last_updated", court.LastUpdated.ToString("yyyy-MM-dd HH:mm:ss"));
 
             var result = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
             
-            System.Diagnostics.Debug.WriteLine($"📈 Rows affected: {result}");
-            
-            bool success = result > 0;
-            System.Diagnostics.Debug.WriteLine($"🎯 UpdateCourtAsync result: {success}");
-            
-            return success;
-        }
-        catch (SqliteException sqlEx)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ SQLite Error: {sqlEx.Message}");
-            return false;
+            System.Diagnostics.Debug.WriteLine($"🎯 UpdateCourtAsync result: {result > 0}");
+            return result > 0;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ General Error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ UpdateCourtAsync Error: {ex.Message}");
             return false;
         }
     }
@@ -284,6 +329,10 @@ public class CourtDao
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
+
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync().ConfigureAwait(false);
 
         var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM Court WHERE court_id = @court_id";

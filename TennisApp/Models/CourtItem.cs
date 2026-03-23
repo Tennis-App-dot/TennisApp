@@ -19,48 +19,10 @@ public class CourtItem : INotifyPropertyChanged
     // court_status: "1" = พร้อมใช้งาน, "0" = กำลังปิดปรับปรุง (ตาม database schema)
     public string Status { get; set; } = "1";
 
-    // last_updated: วันที่เปลี่ยนแปลงข้อมูลล่าสุด (ตาม database schema)
-    public DateTime LastUpdated 
-    { 
-        get => _lastUpdated;
-        set
-        {
-            if (_lastUpdated != value)
-            {
-                _lastUpdated = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(LastUpdatedForDatePicker));
-                OnPropertyChanged(nameof(LastMaintenanceDateText));
-                OnPropertyChanged(nameof(LastModifiedText));
-                
-                System.Diagnostics.Debug.WriteLine($"📅 LastUpdated changed to: {_lastUpdated:yyyy-MM-dd HH:mm:ss}");
-            }
-        }
-    }
+    // ═══════════════════════════════════════════════════════════
+    // maintenance_date: วันที่ปรับปรุงสนามจริง (ผู้ใช้เลือกจาก DatePicker)
+    // ═══════════════════════════════════════════════════════════
 
-    // ✅ DateTimeOffset property สำหรับ DatePicker (WinUI requires DateTimeOffset)
-    public DateTimeOffset LastUpdatedForDatePicker
-    {
-        get => new DateTimeOffset(_lastUpdated);
-        set
-        {
-            var newDateTime = value.DateTime;
-            if (_lastUpdated.Date != newDateTime.Date) // เปรียบเทียบแค่วันที่
-            {
-                // เก็บเวลาเดิม แต่เปลี่ยนวันที่
-                _lastUpdated = new DateTime(
-                    newDateTime.Year, newDateTime.Month, newDateTime.Day,
-                    _lastUpdated.Hour, _lastUpdated.Minute, _lastUpdated.Second);
-                
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(LastUpdated));
-                OnPropertyChanged(nameof(LastMaintenanceDateText));
-                OnPropertyChanged(nameof(LastModifiedText));
-            }
-        }
-    }
-
-    // ✅ maintenance_date: วันที่ปรับปรุงสนามจริง (ผู้ใช้เลือกได้)
     public DateTime MaintenanceDate
     {
         get => _maintenanceDate;
@@ -71,36 +33,61 @@ public class CourtItem : INotifyPropertyChanged
                 _maintenanceDate = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(MaintenanceDateForPicker));
-                OnPropertyChanged(nameof(LastMaintenanceDateText));
-                
-                System.Diagnostics.Debug.WriteLine($"🔧 MaintenanceDate changed to: {_maintenanceDate:yyyy-MM-dd}");
+                OnPropertyChanged(nameof(MaintenanceDateText));
             }
         }
     }
 
-    // ✅ DateTimeOffset property สำหรับ DatePicker ของวันที่ปรับปรุงสนาม
+    /// <summary>DateTimeOffset สำหรับ DatePicker (WinUI requires DateTimeOffset)</summary>
     public DateTimeOffset MaintenanceDateForPicker
     {
-        get 
-        {
-            var result = new DateTimeOffset(_maintenanceDate);
-            return result;
-        }
+        get => new DateTimeOffset(_maintenanceDate);
         set
         {
             var newDate = value.Date;
             if (_maintenanceDate.Date != newDate)
             {
-                System.Diagnostics.Debug.WriteLine($"🔧 MaintenanceDateForPicker changed: {newDate:yyyy-MM-dd}");
                 MaintenanceDate = newDate;
             }
         }
     }
 
-    // court_img: สำหรับ UI ใช้ path แทน BLOB (จะแปลงตอนบันทึก/อ่าน database)
+    /// <summary>แสดงในหน้า List: "วันที่ปรับปรุงล่าสุด: 10/06/2025"</summary>
+    public string MaintenanceDateText => 
+        _maintenanceDate == default 
+            ? "ยังไม่มีข้อมูลการปรับปรุง" 
+            : $"วันที่ปรับปรุงล่าสุด: {_maintenanceDate:dd/MM/yyyy}";
+
+    // ═══════════════════════════════════════════════════════════
+    // last_updated: วันที่+เวลากดบันทึกในระบบ (อัตโนมัติ)
+    // ═══════════════════════════════════════════════════════════
+
+    public DateTime LastUpdated 
+    { 
+        get => _lastUpdated;
+        set
+        {
+            if (_lastUpdated != value)
+            {
+                _lastUpdated = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LastModifiedText));
+            }
+        }
+    }
+
+    /// <summary>แสดงในหน้า Edit: "แก้ไขข้อมูลล่าสุด: 18/06/2025 14:30"</summary>
+    public string LastModifiedText => $"แก้ไขข้อมูลล่าสุด: {_lastUpdated:dd/MM/yyyy HH:mm}";
+
+    /// <summary>สำหรับแปลง DateTime เป็นรูปแบบ SQLite</summary>
+    public string LastUpdatedForDatabase => LastUpdated.ToString("yyyy-MM-dd HH:mm:ss");
+
+    // ═══════════════════════════════════════════════════════════
+    // Image
+    // ═══════════════════════════════════════════════════════════
+
     public string ImagePath { get; set; } = "ms-appx:///Assets/Courts/court1.jpg";
 
-    // court_img: BLOB data สำหรับ database (nullable)
     public byte[]? ImageData
     {
         get => _imageData;
@@ -108,13 +95,10 @@ public class CourtItem : INotifyPropertyChanged
         {
             _imageData = value;
             OnPropertyChanged();
-
-            // อัปเดต ImageSource เมื่อ ImageData เปลี่ยน
             _ = UpdateImageSourceAsync();
         }
     }
 
-    // ImageSource สำหรับแสดงผลใน UI
     public BitmapImage? ImageSource
     {
         get => _imageSource;
@@ -125,76 +109,21 @@ public class CourtItem : INotifyPropertyChanged
         }
     }
 
-    // ใช้แสดงบน UI แทน CourtName
+    // ═══════════════════════════════════════════════════════════
+    // Display
+    // ═══════════════════════════════════════════════════════════
+
     public string DisplayName => $"สนาม {CourtID}";
 
-    // สำหรับแสดงในรายการ Court (แสดงวันที่ที่ผู้ใช้เลือก)
-    public string LastMaintenanceDateText => $"วันที่ปรับปรุงล่าสุด: {LastUpdated:dd/MM/yyyy}";
-
-    // สำหรับแสดงในหน้า Edit (แสดงวันที่ปัจจุบัน + เวลาจาก LastUpdated)
-    public string LastModifiedText
-    {
-        get
-        {
-            // ใช้วันที่ปัจจุบัน + เวลาที่บันทึกจริง
-            var today = DateTime.Today;
-            var timeFromLastUpdated = LastUpdated.TimeOfDay;
-            var displayDateTime = today.Add(timeFromLastUpdated);
-            
-            return $"แก้ไขข้อมูลล่าสุด: {displayDateTime:dd/MM/yyyy HH:mm}";
-        }
-    }
+    // ═══════════════════════════════════════════════════════════
+    // Factory + Clone
+    // ═══════════════════════════════════════════════════════════
 
     /// <summary>
-    /// อัปเดต ImageSource จาก ImageData
+    /// สร้าง CourtItem จากข้อมูล SQLite (2 ฟิลด์แยกกัน)
     /// </summary>
-    private async Task UpdateImageSourceAsync()
-    {
-        try
-        {
-            if (_imageData != null && _imageData.Length > 0)
-            {
-                var bitmap = await TennisApp.Helpers.ImageHelper.CreateBitmapFromBytesAsync(_imageData);
-                ImageSource = bitmap; // bitmap can be null, which is fine
-            }
-            else
-            {
-                // ใช้รูปเดิม
-                try
-                {
-                    ImageSource = new BitmapImage(new Uri("ms-appx:///Assets/Courts/court1.jpg"));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠️ Cannot load default image: {ex.Message}");
-                    ImageSource = null; // ถ้าโหลดรูปเดิมไม่ได้ก็ให้เป็น null
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ UpdateImageSourceAsync Error: {ex.Message}");
-            // หากมีปัญหา ใช้รูปเดิม
-            try
-            {
-                ImageSource = new BitmapImage(new Uri("ms-appx:///Assets/Courts/court1.jpg"));
-            }
-            catch
-            {
-                ImageSource = null; // ถ้าโหลดรูปเดิมไม่ได้เลยก็ให้เป็น null
-            }
-        }
-    }
-
-    /// <summary>
-    /// สำหรับแปลง DateTime เป็นรูปแบบ SQLite
-    /// </summary>
-    public string LastUpdatedForDatabase => LastUpdated.ToString("yyyy-MM-dd HH:mm:ss");
-
-    /// <summary>
-    /// สร้าง CourtItem จากข้อมูล SQLite
-    /// </summary>
-    public static CourtItem FromDatabase(string courtId, byte[]? imageData, string status, string lastUpdatedString)
+    public static CourtItem FromDatabase(string courtId, byte[]? imageData, string status, 
+        string? maintenanceDateStr, string lastUpdatedStr)
     {
         var courtItem = new CourtItem
         {
@@ -203,10 +132,16 @@ public class CourtItem : INotifyPropertyChanged
             Status = status
         };
 
-        // แปลง string จาก database กลับเป็น DateTime
-        if (DateTime.TryParse(lastUpdatedString, out var parsedDate))
+        // Parse maintenance_date (วันที่ปรับปรุงสนาม)
+        if (!string.IsNullOrEmpty(maintenanceDateStr) && DateTime.TryParse(maintenanceDateStr, out var parsedMaintenanceDate))
         {
-            courtItem.LastUpdated = parsedDate;
+            courtItem.MaintenanceDate = parsedMaintenanceDate;
+        }
+
+        // Parse last_updated (วันที่กดบันทึก)
+        if (DateTime.TryParse(lastUpdatedStr, out var parsedLastUpdated))
+        {
+            courtItem.LastUpdated = parsedLastUpdated;
         }
         else
         {
@@ -216,15 +151,53 @@ public class CourtItem : INotifyPropertyChanged
         return courtItem;
     }
 
-    // ใช้สร้างสำเนาสำหรับโหมดแก้ไข (Edit)
     public CourtItem Clone() => new CourtItem
     {
         CourtID = this.CourtID,
         Status = this.Status,
+        MaintenanceDate = this.MaintenanceDate,
         LastUpdated = this.LastUpdated,
         ImagePath = this.ImagePath,
         ImageData = this.ImageData
     };
+
+    // ═══════════════════════════════════════════════════════════
+    // Internal
+    // ═══════════════════════════════════════════════════════════
+
+    private async Task UpdateImageSourceAsync()
+    {
+        try
+        {
+            if (_imageData != null && _imageData.Length > 0)
+            {
+                var bitmap = await TennisApp.Helpers.ImageHelper.CreateBitmapFromBytesAsync(_imageData);
+                ImageSource = bitmap;
+            }
+            else
+            {
+                try
+                {
+                    ImageSource = new BitmapImage(new Uri("ms-appx:///Assets/Courts/court1.jpg"));
+                }
+                catch
+                {
+                    ImageSource = null;
+                }
+            }
+        }
+        catch
+        {
+            try
+            {
+                ImageSource = new BitmapImage(new Uri("ms-appx:///Assets/Courts/court1.jpg"));
+            }
+            catch
+            {
+                ImageSource = null;
+            }
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -16,6 +16,7 @@ public sealed class DatabaseService : IDisposable
     private readonly string _connectionString;
     private bool _disposed;
     private bool _initialized;
+    private readonly object _initLock = new();
 
     public CourtDao Courts { get; private set; } = null!;
     public TraineeDao Trainees { get; private set; } = null!;
@@ -42,18 +43,23 @@ public sealed class DatabaseService : IDisposable
         }
 
         _databasePath = Path.Combine(appFolder, "tennis.db");
-        _connectionString = $"Data Source={_databasePath}";
+        _connectionString = $"Data Source={_databasePath};Pooling=false";
     }
 
     /// <summary>
-    /// Lazy initialization — สร้าง DAO ครั้งแรกที่เรียกใช้ (ไม่ block constructor)
+    /// Lazy initialization — สร้าง DAO ครั้งแรกที่เรียกใช้ (thread-safe)
     /// </summary>
     public void EnsureInitialized()
     {
         if (_initialized) return;
 
-        InitializeDAOs();
-        _initialized = true;
+        lock (_initLock)
+        {
+            if (_initialized) return;
+
+            InitializeDAOs();
+            _initialized = true;
+        }
     }
 
     private void InitializeDAOs()
@@ -85,113 +91,145 @@ public sealed class DatabaseService : IDisposable
     {
         if (_initialized) return;
 
-        await Task.Run(() => InitializeDAOs());
-        _initialized = true;
+        await Task.Run(() => EnsureInitialized());
 
         System.Diagnostics.Debug.WriteLine("✅ DatabaseService initialized asynchronously");
     }
 
     /// <summary>
-    /// รีเซ็ตฐานข้อมูล (สำหรับ testing)
+    /// รีเซ็ตฐานข้อมูล — ลบไฟล์ .db ทิ้งแล้วสร้างใหม่เปล่าๆ (ทุกตาราง + dummy court "00")
+    /// </summary>
+    public async Task ResetDatabaseAsync()
+    {
+        System.Diagnostics.Debug.WriteLine("🗑️ ResetDatabaseAsync: เริ่มรีเซ็ตฐานข้อมูล...");
+
+        lock (_initLock)
+        {
+            _initialized = false;
+        }
+
+        // ✅ Clear connection pool (safety net — Pooling=false ทำให้ไม่ค่อยจำเป็น)
+        SqliteConnection.ClearAllPools();
+
+        // ✅ ลบไฟล์ database — retry ในกรณีที่ยังมี handle ค้าง
+        for (int attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                if (File.Exists(_databasePath))
+                {
+                    File.Delete(_databasePath);
+                    System.Diagnostics.Debug.WriteLine($"   ✅ ลบไฟล์ database สำเร็จ (attempt {attempt})");
+                }
+                break;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                System.Diagnostics.Debug.WriteLine($"   ⏳ ไฟล์ยังถูก lock (attempt {attempt}/5) รอ...");
+                await Task.Delay(200 * attempt);
+                SqliteConnection.ClearAllPools();
+            }
+        }
+
+        // ✅ ยืนยันว่าไฟล์ถูกลบจริง
+        if (File.Exists(_databasePath))
+        {
+            var msg = $"ไม่สามารถลบไฟล์ database ได้: {_databasePath}";
+            System.Diagnostics.Debug.WriteLine($"❌ {msg}");
+            throw new IOException(msg);
+        }
+
+        // ✅ สร้าง database ใหม่เปล่าๆ
+        await Task.Run(() => EnsureInitialized());
+
+        // ✅ ยืนยันว่า database ใหม่ถูกสร้างจริง
+        if (!File.Exists(_databasePath))
+        {
+            System.Diagnostics.Debug.WriteLine("❌ ไม่สามารถสร้าง database ใหม่ได้");
+            throw new InvalidOperationException("ไม่สามารถสร้างฐานข้อมูลใหม่ได้");
+        }
+
+        System.Diagnostics.Debug.WriteLine("✅ ResetDatabaseAsync: ฐานข้อมูลใหม่พร้อมใช้งาน (เปล่า)");
+    }
+
+    /// <summary>
+    /// รีเซ็ตฐานข้อมูลแบบ synchronous (สำหรับ testing)
     /// </summary>
     public void ResetDatabase()
     {
-        if (File.Exists(_databasePath))
+        lock (_initLock)
         {
-            File.Delete(_databasePath);
+            _initialized = false;
         }
 
-        _initialized = false;
+        SqliteConnection.ClearAllPools();
+
+        for (int attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                if (File.Exists(_databasePath))
+                    File.Delete(_databasePath);
+                break;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                System.Threading.Thread.Sleep(200 * attempt);
+                SqliteConnection.ClearAllPools();
+            }
+        }
+
         EnsureInitialized();
     }
 
     /// <summary>
-    /// ลบข้อมูลทั้งหมดในฐานข้อมูล แต่เก็บโครงสร้างไว้
+    /// ลบข้อมูลทั้งหมดในทุกตาราง (เก็บโครงสร้างตารางไว้ + สร้าง dummy court "00" ใหม่)
+    /// ลำดับ DELETE ต้องถูกต้องตาม FK: ลูกก่อน → พ่อทีหลัง
     /// </summary>
     public async Task ClearAllDataAsync()
     {
+        System.Diagnostics.Debug.WriteLine("🧹 ClearAllDataAsync: เริ่มลบข้อมูลทั้งหมด...");
+
         EnsureInitialized();
 
-        System.Diagnostics.Debug.WriteLine("🗑️ เริ่มลบข้อมูลทั้งหมด...");
-        
-        try
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        // ✅ เปิด FK เพื่อให้ CASCADE ทำงาน
+        var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await pragmaCmd.ExecuteNonQueryAsync();
+
+        // ✅ ลบตามลำดับ FK: ลูกสุด → พ่อสุด
+        string[] deleteOrder =
+        [
+            "DELETE FROM PaidCourtUseLog",
+            "DELETE FROM CourseCourtUseLog",
+            "DELETE FROM PaidCourtReservation",
+            "DELETE FROM CourseCourtReservation",
+            "DELETE FROM ClassRegisRecord",
+            "DELETE FROM Course",
+            "DELETE FROM Trainee",
+            "DELETE FROM Trainer",
+            "DELETE FROM Court WHERE court_id != '00'"   // เก็บ dummy "00" ไว้
+        ];
+
+        foreach (var sql in deleteOrder)
         {
-            await using var connection = new SqliteConnection(_connectionString);
-            await connection.OpenAsync();
-
-            // ✅ ดึงรายชื่อตารางที่มีอยู่จริงในฐานข้อมูล
-            var existingTables = new List<string>();
-            var getTablesCommand = connection.CreateCommand();
-            getTablesCommand.CommandText = @"
-                SELECT name FROM sqlite_master 
-                WHERE type='table' 
-                AND name NOT LIKE 'sqlite_%'
-                ORDER BY name
-            ";
-            
-            using var reader = await getTablesCommand.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            try
             {
-                existingTables.Add(reader.GetString(0));
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = sql;
+                var rows = await cmd.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"   ✅ {sql} → {rows} rows deleted");
             }
-
-            System.Diagnostics.Debug.WriteLine($"📋 ตารางที่พบในฐานข้อมูล: {string.Join(", ", existingTables)}");
-
-            // ลบข้อมูลตามลำดับ Foreign Key (ลบจากตารางลูกก่อน)
-            var tablesToClear = new[]
+            catch (Exception ex)
             {
-                "CourseCourtUseLog",       // ลูกของ CourseCourtReservation
-                "PaidCourtUseLog",         // ลูกของ PaidCourtReservation
-                "CourseCourtReservation",  // ลูกของ Court และ Course
-                "PaidCourtReservation",    // ลูกของ Court
-                "ClassRegisRecord",        // ลูกของ Trainee และ Course
-                "Course",                  // ลูกของ Trainer
-                "Trainee",
-                "Trainer",
-                "Court"
-            };
-
-            foreach (var table in tablesToClear)
-            {
-                // ตรวจสอบว่าตารางมีอยู่จริงหรือไม่
-                if (!existingTables.Contains(table))
-                {
-                    System.Diagnostics.Debug.WriteLine($"   ⚠️ {table}: ไม่พบตาราง (ข้าม)");
-                    continue;
-                }
-
-                var command = connection.CreateCommand();
-                command.CommandText = $"DELETE FROM {table}";
-                var rowsAffected = await command.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine($"   ✅ {table}: ลบ {rowsAffected} แถว");
+                System.Diagnostics.Debug.WriteLine($"   ⚠️ {sql} → {ex.Message}");
             }
-
-            // ✅ เพิ่มสนาม dummy "00" กลับคืนมา (สำหรับการจองที่ยังไม่ได้จัดสรรสนาม)
-            if (existingTables.Contains("Court"))
-            {
-                var insertDummyCommand = connection.CreateCommand();
-                insertDummyCommand.CommandText = @"
-                    INSERT INTO Court (court_id, court_img, court_status, last_updated)
-                    VALUES ('00', NULL, '0', CURRENT_TIMESTAMP)
-                ";
-                await insertDummyCommand.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("   ✅ สร้างสนาม dummy '00' กลับคืนมา");
-            }
-
-            // ✅ Run VACUUM to reclaim disk space
-            var vacuumCommand = connection.CreateCommand();
-            vacuumCommand.CommandText = "VACUUM";
-            await vacuumCommand.ExecuteNonQueryAsync();
-            System.Diagnostics.Debug.WriteLine("   ✅ Database vacuumed (reclaimed disk space)");
-
-            System.Diagnostics.Debug.WriteLine("✅ ลบข้อมูลทั้งหมดเสร็จสิ้น");
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ Error clearing database: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"📍 Stack trace: {ex.StackTrace}");
-            throw;
-        }
+
+        System.Diagnostics.Debug.WriteLine("✅ ClearAllDataAsync: ลบข้อมูลทั้งหมดเรียบร้อย");
     }
 
     /// <summary>

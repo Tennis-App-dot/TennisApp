@@ -1,0 +1,270 @@
+﻿<Page
+    x:Class="TennisApp.Presentation.Pages.PaidBookingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:TennisApp.Models"
+    xmlns:converters="using:TennisApp.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="#F5F5F5">
+
+    <Page.Resources>
+        <converters:StatusToColorConverter x:Key="StatusToColorConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ══ Row 0: Header ══════════════════════════════════ -->
+        <Grid Grid.Row="0" Padding="20,16,20,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="จองเช่าสนาม" FontSize="26" FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Click="BtnAddBooking_Click"
+                    Background="#4A148C" Foreground="White" FontSize="14"
+                    Height="40" Padding="18,0" CornerRadius="6">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="White"/>
+                    <TextBlock Text="จองใหม่" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- ══ Row 1: Date Navigator ══════════════════════════ -->
+        <Border Grid.Row="1" Background="White" CornerRadius="10"
+                Margin="20,12,20,0" Padding="12,8"
+                BorderBrush="#E8E8E8" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Click="BtnPrevDate_Click"
+                        Background="Transparent" BorderThickness="0"
+                        Width="40" Height="40" Padding="0" CornerRadius="20">
+                    <FontIcon Glyph="&#xE76B;" FontSize="16" Foreground="#555"/>
+                </Button>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="2">
+                    <TextBlock x:Name="DateDisplayText" Text="วันนี้ — 16/06/2025"
+                               FontSize="16" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Foreground="#333"/>
+                    <TextBlock x:Name="DayOfWeekText" Text="วันจันทร์"
+                               FontSize="12" Foreground="#999"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+                <Button Grid.Column="2" Click="BtnNextDate_Click"
+                        Background="Transparent" BorderThickness="0"
+                        Width="40" Height="40" Padding="0" CornerRadius="20">
+                    <FontIcon Glyph="&#xE76C;" FontSize="16" Foreground="#555"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ══ Row 2: Search Bar ══════════════════════════════ -->
+        <Grid Grid.Row="2" Margin="20,10,20,0" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FilterSearchTextBox" Grid.Column="0"
+                     PlaceholderText="ค้นหาชื่อ / รหัสจอง / เบอร์โทร..."
+                     Background="White" Height="40"
+                     VerticalContentAlignment="Center" FontSize="14"
+                     BorderThickness="1" BorderBrush="#E0E0E0" CornerRadius="6"
+                     TextChanged="FilterSearchTextBox_TextChanged"/>
+            <Button Grid.Column="1" Click="BtnSearch_Click"
+                    Background="White" BorderBrush="#E0E0E0" BorderThickness="1"
+                    Height="40" Width="44" CornerRadius="6">
+                <FontIcon Glyph="&#xE721;" FontSize="16" Foreground="#666"/>
+            </Button>
+        </Grid>
+
+        <!-- ══ Row 3: Status Summary ══════════════════════════ -->
+        <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled"
+                      Margin="20,10,20,0">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Border x:Name="FilterAll" Background="#4A148C" CornerRadius="16"
+                        Padding="12,6" Tapped="StatusFilter_Tapped" Tag="all">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="ทั้งหมด" FontSize="12" Foreground="White"/>
+                        <TextBlock x:Name="AllCountText" Text="0" FontSize="12"
+                                   FontWeight="Bold" Foreground="White"/>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="FilterBooked" Background="#E3F2FD" CornerRadius="16"
+                        Padding="12,6" Tapped="StatusFilter_Tapped" Tag="booked">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="8" Height="8" Fill="#2196F3" VerticalAlignment="Center"/>
+                        <TextBlock Text="จองแล้ว" FontSize="12" Foreground="#1565C0"/>
+                        <TextBlock x:Name="BookedCountText" Text="0" FontSize="12"
+                                   FontWeight="Bold" Foreground="#1565C0"/>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="FilterInUse" Background="#FFF3E0" CornerRadius="16"
+                        Padding="12,6" Tapped="StatusFilter_Tapped" Tag="in_use">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="8" Height="8" Fill="#FF9800" VerticalAlignment="Center"/>
+                        <TextBlock Text="ใช้งาน" FontSize="12" Foreground="#E65100"/>
+                        <TextBlock x:Name="InUseCountText" Text="0" FontSize="12"
+                                   FontWeight="Bold" Foreground="#E65100"/>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="FilterCompleted" Background="#E8F5E9" CornerRadius="16"
+                        Padding="12,6" Tapped="StatusFilter_Tapped" Tag="completed">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="8" Height="8" Fill="#4CAF50" VerticalAlignment="Center"/>
+                        <TextBlock Text="เสร็จ" FontSize="12" Foreground="#2E7D32"/>
+                        <TextBlock x:Name="CompletedCountText" Text="0" FontSize="12"
+                                   FontWeight="Bold" Foreground="#2E7D32"/>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="FilterCancelled" Background="#FFEBEE" CornerRadius="16"
+                        Padding="12,6" Tapped="StatusFilter_Tapped" Tag="cancelled">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="8" Height="8" Fill="#F44336" VerticalAlignment="Center"/>
+                        <TextBlock Text="ยกเลิก" FontSize="12" Foreground="#C62828"/>
+                        <TextBlock x:Name="CancelledCountText" Text="0" FontSize="12"
+                                   FontWeight="Bold" Foreground="#C62828"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ══ Row 4: Reservation Cards List ══════════════════ -->
+        <Grid Grid.Row="4" Margin="20,10,20,0">
+            <!-- Empty State -->
+            <StackPanel x:Name="EmptyStatePanel" Visibility="Collapsed"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="8" Opacity="0.5">
+                <FontIcon Glyph="&#xE787;" FontSize="48" Foreground="#CCC"
+                          HorizontalAlignment="Center"/>
+                <TextBlock x:Name="EmptyStateText" Text="ไม่มีรายการจองในวันนี้"
+                           FontSize="15" Foreground="#999"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Card ListView -->
+            <ListView x:Name="PaidReservationsListView" SelectionMode="None"
+                      Padding="0,0,0,20">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,0,0,10"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:PaidCourtReservationItem">
+                        <Border Background="White" CornerRadius="10"
+                                BorderBrush="#E8E8E8" BorderThickness="1"
+                                Padding="16,14">
+                            <Grid RowSpacing="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Row 0: ID + Status Badge -->
+                                <Grid Grid.Row="0">
+                                    <TextBlock Text="{x:Bind ReserveId}" FontSize="15"
+                                               FontWeight="SemiBold" Foreground="#333"/>
+                                    <Border Background="{x:Bind Status, Converter={StaticResource StatusToColorConverter}}"
+                                            CornerRadius="10" Padding="10,3"
+                                            HorizontalAlignment="Right">
+                                        <TextBlock Text="{x:Bind StatusDisplay}" FontSize="11"
+                                                   Foreground="White" FontWeight="SemiBold"/>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Row 1: Customer -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="14">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE77B;" FontSize="13" Foreground="#666"/>
+                                        <TextBlock Text="{x:Bind ReserveName}" FontSize="14" Foreground="#333"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE717;" FontSize="13" Foreground="#999"/>
+                                        <TextBlock Text="{x:Bind ReservePhone}" FontSize="13" Foreground="#888"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Row 2: Date + Time -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE787;" FontSize="13" Foreground="#666"/>
+                                        <TextBlock Text="{x:Bind ReserveDateDisplay}" FontSize="13" Foreground="#555"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE823;" FontSize="13" Foreground="#666"/>
+                                        <TextBlock Text="{x:Bind TimeRangeDisplay}" FontSize="13" Foreground="#555"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE916;" FontSize="13" Foreground="#666"/>
+                                        <TextBlock Text="{x:Bind DurationDisplay}" FontSize="13" Foreground="#555"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Row 3: Court + Estimated Price -->
+                                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <FontIcon Glyph="&#xE707;" FontSize="13" Foreground="#4A148C"/>
+                                        <TextBlock Text="{x:Bind CourtDisplayName}" FontSize="13"
+                                                   Foreground="#4A148C" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Row 4: Action Buttons -->
+                                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8"
+                                            HorizontalAlignment="Right" Margin="0,4,0,0">
+                                    <Button Tag="{x:Bind}" Click="BtnEditPaid_Click"
+                                            Background="#F3E5F5" CornerRadius="6"
+                                            Height="32" Padding="10,0"
+                                            BorderThickness="0">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE70F;" FontSize="12" Foreground="#7B1FA2"/>
+                                            <TextBlock Text="แก้ไข" FontSize="12" Foreground="#7B1FA2"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Tag="{x:Bind}" Click="BtnCancelPaid_Click"
+                                            Background="#FFF3E0" CornerRadius="6"
+                                            Height="32" Padding="10,0"
+                                            BorderThickness="0">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#E65100"/>
+                                            <TextBlock Text="ยกเลิก" FontSize="12" Foreground="#E65100"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Tag="{x:Bind}" Click="BtnDeletePaid_Click"
+                                            Background="#FFEBEE" CornerRadius="6"
+                                            Height="32" Padding="10,0"
+                                            BorderThickness="0">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="#C62828"/>
+                                            <TextBlock Text="ลบ" FontSize="12" Foreground="#C62828"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+    </Grid>
+</Page>

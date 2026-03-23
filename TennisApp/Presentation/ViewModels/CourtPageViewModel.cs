@@ -10,7 +10,7 @@ namespace TennisApp.Presentation.ViewModels;
 
 public partial class CourtPageViewModel : ObservableObject
 {
-    private readonly DatabaseService _databaseService;
+    private readonly DatabaseService _databaseService = null!;
     private readonly ObservableCollection<CourtItem> _allCourts = new();
     
     public ObservableCollection<CourtItem> Courts { get; } = new();
@@ -21,7 +21,7 @@ public partial class CourtPageViewModel : ObservableObject
         
         try
         {
-            _databaseService = new DatabaseService();
+            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
             System.Diagnostics.Debug.WriteLine("DatabaseService สร้างสำเร็จ");
         }
         catch (System.Exception ex)
@@ -38,7 +38,7 @@ public partial class CourtPageViewModel : ObservableObject
             _databaseService.EnsureInitialized();
             System.Diagnostics.Debug.WriteLine("LoadCourtsAsync เริ่มโหลดข้อมูล...");
             
-            var courtsFromDb = await _databaseService.Courts.GetAllCourtsAsync().ConfigureAwait(false);
+            var courtsFromDb = await _databaseService.Courts.GetAllCourtsAsync();
             
             System.Diagnostics.Debug.WriteLine($"พบข้อมูลจาก Database: {courtsFromDb.Count} รายการ");
             
@@ -70,9 +70,9 @@ public partial class CourtPageViewModel : ObservableObject
 
             var filteredItems = filterType switch
             {
-                "active" => await _databaseService.Courts.GetCourtsByStatusAsync("1").ConfigureAwait(false),
-                "maintenance" => await _databaseService.Courts.GetCourtsByStatusAsync("0").ConfigureAwait(false),
-                _ => await _databaseService.Courts.GetAllCourtsAsync().ConfigureAwait(false)
+                "active" => await _databaseService.Courts.GetCourtsByStatusAsync("1"),
+                "maintenance" => await _databaseService.Courts.GetCourtsByStatusAsync("0"),
+                _ => await _databaseService.Courts.GetAllCourtsAsync()
             };
 
             // อัปเดต _allCourts ด้วยถ้าเป็น "all"
@@ -103,16 +103,19 @@ public partial class CourtPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine("🏗️ เริ่มเพิ่มสนามใหม่...");
             
-            // ใช้ NextAvailableCourtId จาก database
-            var nextId = await _databaseService.Courts.GetNextAvailableCourtIdAsync().ConfigureAwait(false);
-            newCourt.CourtID = nextId;
+            // ✅ A2: ถ้ายังไม่มี CourtID ค่อย generate ใหม่ (ไม่ generate ซ้ำซ้อน)
+            if (string.IsNullOrWhiteSpace(newCourt.CourtID))
+            {
+                var nextId = await _databaseService.Courts.GetNextAvailableCourtIdAsync();
+                newCourt.CourtID = nextId;
+            }
             
-            System.Diagnostics.Debug.WriteLine($"📝 CourtID: {nextId}");
+            System.Diagnostics.Debug.WriteLine($"📝 CourtID: {newCourt.CourtID}");
             System.Diagnostics.Debug.WriteLine($"📝 Status: {newCourt.Status}");
             System.Diagnostics.Debug.WriteLine($"📝 LastUpdated: {newCourt.LastUpdated}");
             System.Diagnostics.Debug.WriteLine($"📝 ImageData length: {newCourt.ImageData?.Length ?? 0}");
             
-            var success = await _databaseService.Courts.AddCourtAsync(newCourt).ConfigureAwait(false);
+            var success = await _databaseService.Courts.AddCourtAsync(newCourt);
             
             System.Diagnostics.Debug.WriteLine($"💾 Database บันทึก: {(success ? "✅ สำเร็จ" : "❌ ล้มเหลว")}");
             
@@ -145,7 +148,7 @@ public partial class CourtPageViewModel : ObservableObject
             System.Diagnostics.Debug.WriteLine($"📝 LastUpdated: {court.LastUpdated}");
             System.Diagnostics.Debug.WriteLine($"📝 ImageData: {court.ImageData?.Length ?? 0} bytes");
             
-            var success = await _databaseService.Courts.UpdateCourtAsync(court).ConfigureAwait(false);
+            var success = await _databaseService.Courts.UpdateCourtAsync(court);
             
             System.Diagnostics.Debug.WriteLine($"💾 Database อัปเดต: {(success ? "✅ สำเร็จ" : "❌ ล้มเหลว")}");
             
@@ -157,8 +160,8 @@ public partial class CourtPageViewModel : ObservableObject
 
                 if (existingInAll != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🔄 อัปเดต _allCourts สำหรับสนาม {court.CourtID}");
                     existingInAll.Status = court.Status;
+                    existingInAll.MaintenanceDate = court.MaintenanceDate;
                     existingInAll.LastUpdated = court.LastUpdated;
                     existingInAll.ImagePath = court.ImagePath;
                     existingInAll.ImageData = court.ImageData;
@@ -166,14 +169,13 @@ public partial class CourtPageViewModel : ObservableObject
 
                 if (existingInDisplay != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🔄 อัปเดต Courts collection สำหรับสนาม {court.CourtID}");
                     existingInDisplay.Status = court.Status;
+                    existingInDisplay.MaintenanceDate = court.MaintenanceDate;
                     existingInDisplay.LastUpdated = court.LastUpdated;
                     existingInDisplay.ImagePath = court.ImagePath;
                     existingInDisplay.ImageData = court.ImageData;
                 }
 
-                System.Diagnostics.Debug.WriteLine($"📊 จำนวนสนามใน UI หลังอัปเดต: {Courts.Count}");
                 return true;
             }
             
@@ -194,13 +196,12 @@ public partial class CourtPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"🗑️ เริ่มลบสนาม {court.CourtID}...");
             
-            var success = await _databaseService.Courts.DeleteCourtAsync(court.CourtID).ConfigureAwait(false);
+            var success = await _databaseService.Courts.DeleteCourtAsync(court.CourtID);
             
             System.Diagnostics.Debug.WriteLine($"💾 Database ลบ: {(success ? "✅ สำเร็จ" : "❌ ล้มเหลว")}");
             
             if (success)
             {
-                // ลบจาก memory collections
                 var removedFromAll = _allCourts.Remove(court);
                 var removedFromDisplay = Courts.Remove(court);
                 
@@ -226,7 +227,7 @@ public partial class CourtPageViewModel : ObservableObject
     {
         try
         {
-            var nextId = await _databaseService.Courts.GetNextAvailableCourtIdAsync().ConfigureAwait(false);
+            var nextId = await _databaseService.Courts.GetNextAvailableCourtIdAsync();
             return (true, nextId);
         }
         catch

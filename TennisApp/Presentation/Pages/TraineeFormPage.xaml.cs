@@ -15,95 +15,41 @@ public sealed partial class TraineeFormPage : Page
 {
     private readonly DatabaseService _databaseService;
     private byte[]? _selectedImageData;
+    private NotificationService? _notify;
 
     public TraineeFormPage()
     {
         InitializeComponent();
-        _databaseService = new DatabaseService();
+        _databaseService = ((App)Application.Current).DatabaseService;
         _databaseService.EnsureInitialized();
+        this.Loaded += (s, e) => _notify = NotificationService.GetFromPage(this);
     }
 
     private async void BtnUploadPhoto_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var picker = new FileOpenPicker();
-            
-            // Get the window handle
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-            
-            picker.FileTypeFilter.Add(".jpg");
-            picker.FileTypeFilter.Add(".jpeg");
-            picker.FileTypeFilter.Add(".png");
-            picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
+            var result = await Services.ImagePickerService.PickAndCropCircleAsync(this.XamlRoot!);
 
-            var file = await picker.PickSingleFileAsync();
-            
-            if (file != null)
+            if (result.IsSuccess && result.ImageData != null)
             {
-                System.Diagnostics.Debug.WriteLine($"📸 Selected file: {file.Name}");
-                
-                // ตรวจสอบขนาดไฟล์ (3MB = 3 * 1024 * 1024 bytes)
-                var properties = await file.GetBasicPropertiesAsync();
-                if (properties.Size > 3 * 1024 * 1024)
+                _selectedImageData = result.ImageData;
+                var bitmap = await Services.ImagePickerService.CreateBitmapAsync(result.ImageData);
+                if (bitmap != null)
                 {
-                    await ShowErrorDialog("ขนาดไฟล์เกิน 3MB กรุณาเลือกไฟล์ที่เล็กกว่า");
-                    return;
+                    ProfileImage.Source = bitmap;
+                    ProfileImage.Visibility = Visibility.Visible;
+                    PlaceholderIcon.Visibility = Visibility.Collapsed;
                 }
-                
-                // อ่านไฟล์เป็น byte array
-                using var stream = await file.OpenReadAsync();
-                using var memoryStream = new System.IO.MemoryStream();
-                await stream.AsStreamForRead().CopyToAsync(memoryStream);
-                var originalImageData = memoryStream.ToArray();
-                
-                System.Diagnostics.Debug.WriteLine($"✅ Image loaded: {originalImageData.Length} bytes");
-                
-                // เปิด dialog สำหรับ crop รูปภาพ
-                var croppedImageData = await Helpers.ImageHelper.ShowImageCropperAsync(originalImageData);
-                
-                if (croppedImageData != null)
-                {
-                    _selectedImageData = croppedImageData;
-                    System.Diagnostics.Debug.WriteLine($"✅ Image cropped: {_selectedImageData.Length} bytes");
-                    
-                    // แสดงรูปภาพที่ crop แล้ว
-                    await LoadImageFromBytes(_selectedImageData);
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("ℹ️ User cancelled cropping");
-                }
+            }
+            else if (!result.IsCancelled && result.ErrorTitle != null)
+            {
+                _notify?.ShowWarning(result.ErrorMessage ?? result.ErrorTitle);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error picking image: {ex.Message}");
-            await ShowErrorDialog($"เกิดข้อผิดพลาดในการเลือกรูปภาพ: {ex.Message}");
-        }
-    }
-
-    private async System.Threading.Tasks.Task LoadImageFromBytes(byte[] imageData)
-    {
-        try
-        {
-            using var stream = new InMemoryRandomAccessStream();
-            await stream.WriteAsync(imageData.AsBuffer());
-            stream.Seek(0);
-            
-            var bitmap = new BitmapImage();
-            await bitmap.SetSourceAsync(stream);
-            
-            ProfileImage.Source = bitmap;
-            ProfileImage.Visibility = Visibility.Visible;
-            PlaceholderIcon.Visibility = Visibility.Collapsed;
-            
-            System.Diagnostics.Debug.WriteLine("✅ Image displayed successfully");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ Error loading image: {ex.Message}");
+            _notify?.ShowError($"เกิดข้อผิดพลาดในการเลือกรูปภาพ: {ex.Message}");
         }
     }
 
@@ -136,129 +82,52 @@ public sealed partial class TraineeFormPage : Page
 
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("TraineeFormPage: Save button clicked");
-
-        // Validate required fields
         if (string.IsNullOrWhiteSpace(TxtFirstName.Text))
         {
-            await ShowErrorDialog("กรุณากรอกชื่อ");
+            _notify?.ShowWarning("กรุณากรอกชื่อ");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(TxtLastName.Text))
         {
-            await ShowErrorDialog("กรุณากรอกนามสกุล");
+            _notify?.ShowWarning("กรุณากรอกนามสกุล");
             return;
         }
 
         try
         {
-            // Generate next trainee ID
             var nextId = await _databaseService.Trainees.GetNextTraineeIdAsync();
-            
-            // Get birth date if selected
+
             DateTime? birthDate = null;
             if (DateBirthDate.Date.Year > 1900)
-            {
                 birthDate = DateBirthDate.Date.DateTime;
-            }
-            
-            // Create new trainee
+
             var newTrainee = new TraineeItem
             {
                 TraineeId = nextId,
                 FirstName = TxtFirstName.Text.Trim(),
                 LastName = TxtLastName.Text.Trim(),
-                Nickname = string.IsNullOrWhiteSpace(TxtNickname.Text) ? null : TxtNickname.Text.Trim(),
-                Phone = string.IsNullOrWhiteSpace(TxtPhone.Text) ? null : TxtPhone.Text.Trim(),
+                Nickname = string.IsNullOrWhiteSpace(TxtNickname.Text) ? string.Empty : TxtNickname.Text.Trim(),
+                Phone = string.IsNullOrWhiteSpace(TxtPhone.Text) ? string.Empty : TxtPhone.Text.Trim(),
                 BirthDate = birthDate,
-                ImageData = _selectedImageData // บันทึกรูปภาพ
+                ImageData = _selectedImageData
             };
 
-            System.Diagnostics.Debug.WriteLine($"Creating trainee: {newTrainee.FullName} (ID: {newTrainee.TraineeId})");
-            System.Diagnostics.Debug.WriteLine($"Image data: {_selectedImageData?.Length ?? 0} bytes");
-
-            // Save to database
             var success = await _databaseService.Trainees.AddTraineeAsync(newTrainee);
 
             if (success)
             {
-                System.Diagnostics.Debug.WriteLine("✅ Trainee saved successfully");
-                await ShowSuccessDialog("บันทึกข้อมูลผู้เรียนเรียบร้อยแล้ว");
-                
-                if (Frame.CanGoBack)
-                {
-                    Frame.GoBack();
-                }
+                _notify?.ShowSuccess("บันทึกข้อมูลผู้เรียนเรียบร้อยแล้ว");
+                if (Frame.CanGoBack) Frame.GoBack();
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("❌ Failed to save trainee");
-                await ShowErrorDialog("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+                _notify?.ShowError("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error saving trainee: {ex.Message}");
-            await ShowErrorDialog($"เกิดข้อผิดพลาด: {ex.Message}");
+            _notify?.ShowError($"เกิดข้อผิดพลาด: {ex.Message}");
         }
-    }
-
-    private async System.Threading.Tasks.Task ShowErrorDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
-    }
-
-    private async System.Threading.Tasks.Task ShowSuccessDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "สำเร็จ",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
     }
 }

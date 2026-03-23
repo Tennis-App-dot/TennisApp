@@ -34,11 +34,16 @@ public sealed partial class CourtFormDialog : ContentDialog
         System.Diagnostics.Debug.WriteLine($"   CourtFormDialog initialized:");
         System.Diagnostics.Debug.WriteLine($"   Mode: {(_isEditMode ? "Edit" : "Add")}");
         System.Diagnostics.Debug.WriteLine($"   CourtID: {seed.CourtID}");
+        System.Diagnostics.Debug.WriteLine($"   MaintenanceDate: {seed.MaintenanceDate:yyyy-MM-dd}");
         System.Diagnostics.Debug.WriteLine($"   LastUpdated: {seed.LastUpdated:yyyy-MM-dd HH:mm:ss}");
-        System.Diagnostics.Debug.WriteLine($"   LastUpdatedForDatePicker: {seed.LastUpdatedForDatePicker:yyyy-MM-dd}");
 
-        // ซ่อนข้อความ "แก้ไขข้อมูลล่าสุด" ในโหมดเพิ่ม
-        this.Loaded += (s, e) => SetLastModifiedVisibility();
+        // ซ่อนข้อความ "แก้ไขข้อมูลล่าสุด" ในโหมดเพิ่ม + บังคับความกว้าง
+        this.Loaded += (s, e) =>
+        {
+            SetLastModifiedVisibility();
+            UpdateImagePlaceholder();
+            ForceDialogWidth();
+        };
     }
 
     private void SetLastModifiedVisibility()
@@ -47,6 +52,69 @@ public sealed partial class CourtFormDialog : ContentDialog
         if (FindName("LastModifiedTextBlock") is TextBlock lastModifiedTextBlock)
         {
             lastModifiedTextBlock.Visibility = _isEditMode ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (FindName("LastModifiedIcon") is FontIcon lastModifiedIcon)
+        {
+            lastModifiedIcon.Visibility = _isEditMode ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateImagePlaceholder()
+    {
+        if (FindName("ImagePlaceholder") is StackPanel placeholder)
+        {
+            bool hasImage = Result?.ImageData != null && Result.ImageData.Length > 0;
+            placeholder.Visibility = hasImage ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    /// <summary>
+    /// บังคับให้ dialog กว้างเต็มจอ (ลบ margin เล็กน้อย) บน Android
+    /// ใช้ XamlRoot.Size ซึ่งให้ค่าเป็น DIPs (density-independent pixels)
+    /// </summary>
+    private void ForceDialogWidth()
+    {
+        try
+        {
+            double availableWidth = 0;
+
+            // ✅ ใช้ XamlRoot.Size (DIPs) — ถูกต้องบน Android
+            if (this.XamlRoot?.Size.Width > 0)
+            {
+                availableWidth = this.XamlRoot.Size.Width;
+            }
+            else if (this.ActualWidth > 0)
+            {
+                availableWidth = this.ActualWidth;
+            }
+
+            if (availableWidth > 0)
+            {
+                // ลบ margin ซ้าย-ขวา (24+24) เพื่อให้ไม่ชิดขอบ
+                var targetWidth = availableWidth - 48;
+
+                // จำกัดไม่ให้เล็กเกินหรือใหญ่เกิน
+                if (targetWidth < 300) targetWidth = 300;
+                if (targetWidth > 600) targetWidth = 600;
+
+                this.MinWidth = targetWidth;
+                this.MaxWidth = targetWidth;
+                this.Width = targetWidth;
+
+                System.Diagnostics.Debug.WriteLine($"✅ ForceDialogWidth: {targetWidth}px (available: {availableWidth}px)");
+            }
+            else
+            {
+                // Fallback: ใช้ค่าคงที่ที่เหมาะกับมือถือ
+                this.MinWidth = 380;
+                this.MaxWidth = 380;
+                this.Width = 380;
+                System.Diagnostics.Debug.WriteLine("✅ ForceDialogWidth: fallback 380px");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ ForceDialogWidth failed: {ex.Message}");
         }
     }
 
@@ -57,84 +125,29 @@ public sealed partial class CourtFormDialog : ContentDialog
     {
         try
         {
-            // สร้าง File Picker
-            var picker = new FileOpenPicker();
-            picker.ViewMode = PickerViewMode.Thumbnail;
-            picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
-            picker.FileTypeFilter.Add(".jpg");
-            picker.FileTypeFilter.Add(".jpeg");
-            picker.FileTypeFilter.Add(".png");
+            var result = await Services.ImagePickerService.PickAndCropRectangleAsync(this.XamlRoot!);
 
-            // ✅ ตั้งค่า Window Handle สำหรับ Win32 พร้อม null checks
-            try
+            if (result.IsSuccess && result.ImageData != null && Result != null)
             {
-                // ตรวจสอบ XamlRoot และ Content ก่อนใช้งาน
-                if (this.XamlRoot?.Content != null)
-                {
-                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this.XamlRoot.Content);
-                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-                }
-            }
-            catch
-            {
-                // Fallback - ลองใช้วิธีอื่น
-                System.Diagnostics.Debug.WriteLine("ไม่สามารถตั้งค่า Window Handle ได้");
-            }
+                Result.ImageData = result.ImageData;
+                await UpdateImagePreview(result.ImageData);
+                UpdateImagePlaceholder();
 
-            // เลือกไฟล์
-            var file = await picker.PickSingleFileAsync();
-            if (file != null)
-            {
-                // ตรวจสอบขนาดไฟล์ (ไม่เกิน 3MB)
-                if (!await TennisApp.Helpers.ImageHelper.IsFileSizeValidAsync(file))
+                if (sender is Button button && button.Content is StackPanel sp)
                 {
-                    await ShowErrorMessage("ไฟล์ใหญ่เกินไป", "ขนาดไฟล์ต้องไม่เกิน 3MB");
-                    return;
-                }
-
-                // ตรวจสอบนามสกุลไฟล์
-                if (!TennisApp.Helpers.ImageHelper.IsValidImageExtension(file.Name))
-                {
-                    await ShowErrorMessage("ไฟล์ไม่ถูกต้อง", "กรุณาเลือกไฟล์ JPEG หรือ PNG");
-                    return;
-                }
-
-                // อ่านไฟล์เป็น bytes
-                var bytes = await TennisApp.Helpers.ImageHelper.ConvertToByteArrayAsync(file);
-
-                // ✅ เปิด ImageCropperDialog เพื่อให้ผู้ใช้ปรับตำแหน่งรูปภาพ
-                var cropDialog = new ImageCropperDialog(bytes, CropShape.Rectangle, 534, 300)
-                {
-                    XamlRoot = this.XamlRoot
-                };
-                
-                var cropResult = await cropDialog.ShowAsync();
-                
-                if (cropResult == ContentDialogResult.Primary && cropDialog.CroppedImageData != null)
-                {
-                    // ✅ ตรวจสอบ Result ก่อนใช้งาน
-                    if (Result != null)
+                    foreach (var child in sp.Children)
                     {
-                        // อัปเดต Model ด้วยรูปที่ถูก crop แล้ว
-                        Result.ImageData = cropDialog.CroppedImageData;
-                        Result.ImagePath = file.Path; // เก็บ path สำหรับแสดงผล
-
-                        // อัปเดต UI
-                        await UpdateImagePreview(cropDialog.CroppedImageData);
-
-                        // ✅ เปลี่ยนข้อความปุ่มพร้อม null check
-                        if (sender is Button button)
+                        if (child is TextBlock tb)
                         {
-                            button.Content = "เลือกรูปภาพแล้ว - คลิกเพื่อเปลี่ยน";
+                            tb.Text = "เปลี่ยนรูปภาพ";
+                            break;
                         }
-                        
-                        System.Diagnostics.Debug.WriteLine($"✅ Court image cropped successfully: {cropDialog.CroppedImageData.Length} bytes");
                     }
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("❌ User cancelled image cropping");
-                }
+            }
+            else if (!result.IsCancelled && result.ErrorTitle != null)
+            {
+                await ShowErrorMessage(result.ErrorTitle, result.ErrorMessage ?? "");
             }
         }
         catch (Exception ex)
@@ -196,39 +209,29 @@ public sealed partial class CourtFormDialog : ContentDialog
     {
         System.Diagnostics.Debug.WriteLine("SaveButton_Click - เริ่มทำงาน");
         
-        // ✅ ตรวจสอบ Result ก่อนใช้งาน
         if (Result == null)
         {
             System.Diagnostics.Debug.WriteLine("❌ Result is null");
             return;
         }
         
-        // ✅ Validate input
         if (Result.Status != "0" && Result.Status != "1")
         {
             System.Diagnostics.Debug.WriteLine("❌ Status ไม่ถูกต้อง");
             return;
         }
 
-        // ✅ บันทึก last_updated = วันที่จาก DatePicker + เวลาปัจจุบัน
-        // (1 ฟิลด์เดียวแต่มี 2 ความหมาย)
-        var selectedDate = Result.LastUpdatedForDatePicker.Date;  // วันที่ที่ผู้ใช้เลือก (วันที่ปรับปรุงสนาม)
-        var currentTime = DateTime.Now.TimeOfDay;                  // เวลาปัจจุบัน (เวลาที่แก้ไขข้อมูล)
-        var newDateTime = selectedDate.Add(currentTime);           // รวมกัน
-        
-        Result.LastUpdated = newDateTime;
+        // ✅ MaintenanceDate ถูกตั้งค่าจาก DatePicker โดยอัตโนมัติผ่าน Binding แล้ว
+        // ✅ LastUpdated = วันที่+เวลาจริงที่กดบันทึก (ระบบตั้งอัตโนมัติ)
+        Result.LastUpdated = DateTime.Now;
 
         System.Diagnostics.Debug.WriteLine($"✅ กำลังบันทึก:");
         System.Diagnostics.Debug.WriteLine($"   CourtID: {Result.CourtID}");
         System.Diagnostics.Debug.WriteLine($"   Status: {Result.Status}");
-        System.Diagnostics.Debug.WriteLine($"   LastUpdated (รวม): {Result.LastUpdated:yyyy-MM-dd HH:mm:ss}");
-        System.Diagnostics.Debug.WriteLine($"   - วันที่ (ปรับปรุงสนาม): {selectedDate:yyyy-MM-dd}");
-        System.Diagnostics.Debug.WriteLine($"   - เวลา (แก้ไขข้อมูล): {currentTime}");
+        System.Diagnostics.Debug.WriteLine($"   MaintenanceDate (ผู้ใช้เลือก): {Result.MaintenanceDate:yyyy-MM-dd}");
+        System.Diagnostics.Debug.WriteLine($"   LastUpdated (ระบบ): {Result.LastUpdated:yyyy-MM-dd HH:mm:ss}");
         
-        // ✅ กำหนดว่ากดปุ่ม Save แล้ว
         WasSaved = true;
-
-        // ✅ ปิด dialog
         Hide();
     }
 

@@ -13,6 +13,7 @@ public sealed partial class TraineeSelectionDialog : ContentDialog
 {
     private readonly DatabaseService _database;
     private readonly string _classId;
+    private readonly string _trainerId;
     private readonly List<string> _alreadySelectedIds;
     private List<SelectableTraineeItem> _allTrainees = new();
     private readonly ObservableCollection<SelectableTraineeItem> _filteredTrainees = new();
@@ -23,13 +24,15 @@ public sealed partial class TraineeSelectionDialog : ContentDialog
     public List<TraineeItem> SelectedTrainees { get; private set; } = new();
 
     /// <param name="classId">Course ID to check existing registrations.</param>
+    /// <param name="trainerId">Trainer ID for composite key check.</param>
     /// <param name="alreadySelectedIds">IDs already in the parent page list (to pre-check / disable).</param>
-    public TraineeSelectionDialog(string classId, List<string> alreadySelectedIds)
+    public TraineeSelectionDialog(string classId, string trainerId, List<string> alreadySelectedIds)
     {
         InitializeComponent();
 
         _database = ((App)Application.Current).DatabaseService;
         _classId = classId;
+        _trainerId = trainerId;
         _alreadySelectedIds = alreadySelectedIds ?? new List<string>();
 
         var titleTextBlock = new TextBlock
@@ -55,8 +58,8 @@ public sealed partial class TraineeSelectionDialog : ContentDialog
 
             var trainees = await _database.Trainees.GetAllTraineesAsync();
 
-            // Check which trainees are already registered for this course in DB
-            var existingRegistrations = await _database.Registrations.GetRegistrationsByCourseIdAsync(_classId);
+            // Check which trainees are already registered for this specific course+trainer in DB
+            var existingRegistrations = await _database.Registrations.GetRegistrationsByCompositeKeyAsync(_classId, _trainerId);
             var registeredIds = existingRegistrations.Select(r => r.TraineeId).ToHashSet();
 
             _allTrainees.Clear();

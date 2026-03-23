@@ -12,12 +12,17 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
     private string _reserveId = string.Empty;
     private string _courtId = string.Empty;
     private string _classId = string.Empty;
+    private string _trainerId = string.Empty;
     private DateTime _requestDate = DateTime.Now;
     private DateTime _reserveDate = DateTime.Today;
     private TimeSpan _reserveTime = new TimeSpan(8, 0, 0); // Default 08:00
     private string _reserveName = string.Empty;
     private string _reservePhone = string.Empty;
     private string _status = "booked";
+
+    // Start-Stop fields (สำหรับบันทึกเวลาเข้า-ออกจริง)
+    private DateTime? _actualStart;
+    private DateTime? _actualEnd;
 
     // Additional fields from joined tables (not in database, for display only)
     private string _classTitle = string.Empty;
@@ -55,6 +60,15 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
     {
         get => _classId;
         set => SetProperty(ref _classId, value);
+    }
+
+    /// <summary>
+    /// Trainer ID (FK to Course composite key)
+    /// </summary>
+    public string TrainerId
+    {
+        get => _trainerId;
+        set => SetProperty(ref _trainerId, value);
     }
 
     /// <summary>
@@ -135,6 +149,28 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(StatusColor));
             }
         }
+    }
+
+    // ========================================================================
+    // Start-Stop Fields (บันทึกเวลาเข้า-ออกจริง)
+    // ========================================================================
+
+    /// <summary>
+    /// เวลาเริ่มใช้งานจริง (ตอนกด Start)
+    /// </summary>
+    public DateTime? ActualStart
+    {
+        get => _actualStart;
+        set => SetProperty(ref _actualStart, value);
+    }
+
+    /// <summary>
+    /// เวลาหยุดใช้งานจริง (ตอนกด Stop)
+    /// </summary>
+    public DateTime? ActualEnd
+    {
+        get => _actualEnd;
+        set => SetProperty(ref _actualEnd, value);
     }
 
     // ========================================================================
@@ -350,6 +386,7 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
             ReserveId = this.ReserveId,
             CourtId = this.CourtId,
             ClassId = this.ClassId,
+            TrainerId = this.TrainerId,
             RequestDate = this.RequestDate,
             ReserveDate = this.ReserveDate,
             ReserveTime = this.ReserveTime,
@@ -357,7 +394,9 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
             ReservePhone = this.ReservePhone,
             ClassTitle = this.ClassTitle,
             ClassDuration = this.ClassDuration,
-            Status = this.Status
+            Status = this.Status,
+            ActualStart = this.ActualStart,
+            ActualEnd = this.ActualEnd
         };
     }
 }

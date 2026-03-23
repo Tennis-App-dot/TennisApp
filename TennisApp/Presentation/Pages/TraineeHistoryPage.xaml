@@ -7,31 +7,76 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Background="#F5F5F5">
+    Background="#F2F4F7">
 
-    <Grid Padding="24,20">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Grid x:Name="RootGrid" Padding="16,14">
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="WindowSizeStates">
+                <VisualState x:Name="NarrowState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.Padding" Value="12,10"/>
+                        <Setter Target="HeaderTitle.FontSize" Value="22"/>
+                        <Setter Target="ProfileImage.Width" Value="72"/>
+                        <Setter Target="ProfileImage.Height" Value="72"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="600"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.Padding" Value="24,18"/>
+                        <Setter Target="HeaderTitle.FontSize" Value="26"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <TextBlock Grid.Row="0"
-                   Text="ประวัติผู้เรียน"
-                   FontSize="28"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,16"/>
+        <!-- ── Header ─────────────────────────────────────── -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0"
+                    Background="Transparent" BorderThickness="0"
+                    Padding="0,0,12,0" Click="BtnBack_Click"
+                    VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE76B;" FontSize="18" Foreground="#1A1A2E"/>
+                    <TextBlock Text="กลับ" FontSize="15" Foreground="#1A1A2E"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <TextBlock x:Name="HeaderTitle"
+                       Grid.Column="1"
+                       Text="ประวัติผู้เรียน"
+                       FontSize="26" FontWeight="ExtraBold"
+                       Foreground="#1A1A2E"
+                       VerticalAlignment="Center"
+                       Margin="12,0,0,0"/>
+        </Grid>
 
-        <!-- Trainee Profile Card -->
+        <!-- ── Trainee Profile Card ───────────────────────── -->
         <Border Grid.Row="1"
                 Background="White"
-                CornerRadius="12"
-                Padding="24"
-                Margin="0,0,0,16"
-                BorderBrush="#E0E0E0"
+                CornerRadius="14"
+                Padding="20,16"
+                Margin="0,0,0,14"
+                BorderBrush="#E5E7EB"
                 BorderThickness="1">
-            <Grid ColumnSpacing="24">
+            <Grid ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -39,205 +84,154 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Profile Image -->
-                <Border Grid.Column="0"
-                        Width="100" Height="100"
-                        CornerRadius="50"
-                        Background="#E8EAF6">
+                <Border x:Name="ProfileImage"
+                        Grid.Column="0"
+                        Width="90" Height="90"
+                        CornerRadius="45"
+                        Background="#EDE7F6"
+                        VerticalAlignment="Center">
                     <Grid>
-                        <Image x:Name="ProfileImage" Stretch="UniformToFill"/>
+                        <Image x:Name="ProfileImageSource" Stretch="UniformToFill"/>
                         <FontIcon x:Name="PlaceholderIcon"
                                   Glyph="&#xE77B;"
-                                  FontSize="48"
-                                  Foreground="#9E9E9E"
+                                  FontSize="40"
+                                  Foreground="#9CA3AF"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
 
                 <!-- Trainee Info -->
-                <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                     <TextBlock x:Name="TxtTraineeName"
-                               FontSize="20" FontWeight="SemiBold" Foreground="#212121"/>
+                               FontSize="18" FontWeight="Bold" Foreground="#1A1A2E"/>
                     <TextBlock x:Name="TxtTraineeId"
-                               FontSize="13" Foreground="#757575"/>
-                    <StackPanel Orientation="Horizontal" Spacing="16">
+                               FontSize="13" Foreground="#6B7280"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12">
                         <TextBlock x:Name="TxtTraineeNickname"
-                                   FontSize="14" Foreground="#555"/>
+                                   FontSize="14" Foreground="#4B5563"/>
                         <TextBlock x:Name="TxtPhone"
-                                   FontSize="14" Foreground="#555"/>
+                                   FontSize="14" Foreground="#4B5563"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
                         <TextBlock x:Name="TxtBirthDate"
-                                   FontSize="14" Foreground="#555"/>
+                                   FontSize="14" Foreground="#4B5563"/>
                         <TextBlock x:Name="TxtAge"
-                                   FontSize="14" Foreground="#555"/>
+                                   FontSize="14" Foreground="#4B5563"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Summary Badge -->
                 <Border Grid.Column="2"
-                        Background="#E8F5E9"
-                        CornerRadius="10"
-                        Padding="20,12"
+                        Background="#EDE7F6"
+                        CornerRadius="14"
+                        Padding="16,10"
                         VerticalAlignment="Center">
-                    <StackPanel HorizontalAlignment="Center" Spacing="4">
+                    <StackPanel HorizontalAlignment="Center" Spacing="2">
                         <TextBlock x:Name="TxtTotalCourses"
-                                   FontSize="32" FontWeight="Bold"
-                                   Foreground="#2E7D32"
+                                   FontSize="28" FontWeight="ExtraBold"
+                                   Foreground="#6C2BD9"
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="คอร์สที่ลงเรียน"
-                                   FontSize="12" Foreground="#388E3C"
+                                   FontSize="11" Foreground="#9575CD"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- Registration List -->
-        <Border Grid.Row="2"
-                Background="White"
-                CornerRadius="12"
-                BorderBrush="#E0E0E0"
-                BorderThickness="1">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        <!-- ── Registration Card List ─────────────────────── -->
+        <Grid Grid.Row="2">
+            <ProgressRing x:Name="LoadingRing"
+                          IsActive="False"
+                          Width="50" Height="50"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"/>
 
-                <!-- Table Header -->
-                <Border Grid.Row="0"
-                        Background="#4CAF50"
-                        CornerRadius="12,12,0,0"
-                        Padding="20,14">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="140"/>
-                            <ColumnDefinition Width="80"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="120"/>
-                            <ColumnDefinition Width="120"/>
-                            <ColumnDefinition Width="160"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="วันที่สมัคร"
-                                   Foreground="White" FontWeight="SemiBold" FontSize="14"/>
-                        <TextBlock Grid.Column="1" Text="รหัส"
-                                   Foreground="White" FontWeight="SemiBold" FontSize="14"/>
-                        <TextBlock Grid.Column="2" Text="ชื่อคอร์ส"
-                                   Foreground="White" FontWeight="SemiBold" FontSize="14"/>
-                        <TextBlock Grid.Column="3" Text="จำนวนครั้ง"
-                                   Foreground="White" FontWeight="SemiBold" FontSize="14"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Grid.Column="4" Text="ค่าเรียน"
-                                   Foreground="White" FontWeight="SemiBold" FontSize="14"
-                                   HorizontalAlignment="Right"/>
-                        <TextBlock Grid.Column="5" Text="ผู้สอน"
-                                   Foreground="White" FontWeight="SemiBold" FontSize="14"
-                                   Margin="16,0,0,0"/>
-                    </Grid>
-                </Border>
+            <StackPanel x:Name="NoResultsPanel"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12"
+                        Visibility="Collapsed">
+                <FontIcon Glyph="&#xE11A;" FontSize="64" Foreground="#D1D5DB"/>
+                <TextBlock Text="ยังไม่มีประวัติการลงเรียน"
+                           FontSize="18" Foreground="#9CA3AF"
+                           HorizontalAlignment="Center" FontWeight="Medium"/>
+            </StackPanel>
 
-                <!-- Loading / Empty / List -->
-                <Grid Grid.Row="1">
-                    <ProgressRing x:Name="LoadingRing"
-                                  IsActive="False"
-                                  Width="48" Height="48"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
+            <ListView x:Name="RegistrationListView"
+                      SelectionMode="None">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,0,0,12"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:ClassRegisRecordItem">
+                        <Border Background="White"
+                                CornerRadius="14"
+                                Padding="0"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                MinHeight="90">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                    <StackPanel x:Name="NoResultsPanel"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="12"
-                                Visibility="Collapsed">
-                        <FontIcon Glyph="&#xE11A;" FontSize="48" Foreground="#BDBDBD"/>
-                        <TextBlock Text="ยังไม่มีประวัติการลงเรียน"
-                                   FontSize="16" Foreground="#9E9E9E"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-
-                    <ListView x:Name="RegistrationListView"
-                              SelectionMode="None">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Margin" Value="0"/>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="models:ClassRegisRecordItem">
-                                <Border Padding="20,14"
-                                        BorderBrush="#F0F0F0"
-                                        BorderThickness="0,0,0,1">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="140"/>
-                                            <ColumnDefinition Width="80"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="120"/>
-                                            <ColumnDefinition Width="120"/>
-                                            <ColumnDefinition Width="160"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <!-- วันที่สมัคร -->
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{x:Bind RegisDateFormatted}"
-                                                   FontSize="14" Foreground="#424242"
-                                                   VerticalAlignment="Center"/>
-
-                                        <!-- รหัสคอร์ส -->
-                                        <Border Grid.Column="1"
-                                                Background="#E3F2FD"
-                                                CornerRadius="6"
-                                                Padding="8,4"
-                                                HorizontalAlignment="Left"
-                                                VerticalAlignment="Center">
-                                            <TextBlock Text="{x:Bind ClassId}"
-                                                       FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="#1565C0"/>
-                                        </Border>
-
-                                        <!-- ชื่อคอร์ส -->
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{x:Bind ClassName}"
-                                                   FontSize="14" Foreground="#212121"
-                                                   VerticalAlignment="Center"/>
-
-                                        <!-- จำนวนครั้ง -->
-                                        <TextBlock Grid.Column="3"
-                                                   Text="{x:Bind ClassTimeText}"
-                                                   FontSize="14" Foreground="#424242"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
-
-                                        <!-- ค่าเรียน -->
-                                        <TextBlock Grid.Column="4"
-                                                   Text="{x:Bind ClassRateText}"
-                                                   FontSize="14" FontWeight="SemiBold"
-                                                   Foreground="#C62828"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center"/>
-
-                                        <!-- ผู้สอน -->
-                                        <StackPanel Grid.Column="5"
-                                                    Orientation="Horizontal"
-                                                    Spacing="6"
-                                                    Margin="16,0,0,0"
-                                                    VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE77B;"
-                                                      FontSize="14"
-                                                      Foreground="#757575"/>
-                                            <TextBlock Text="{x:Bind TrainerDisplayName}"
-                                                       FontSize="14" Foreground="#424242"/>
-                                        </StackPanel>
-                                    </Grid>
+                                <!-- Course Badge (left) -->
+                                <Border Grid.Column="0"
+                                        Width="72" Height="72"
+                                        CornerRadius="14"
+                                        Background="#EDE7F6"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Center">
+                                    <StackPanel HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Spacing="2">
+                                        <TextBlock Text="{x:Bind ClassId}"
+                                                   FontSize="16" FontWeight="ExtraBold"
+                                                   Foreground="#6C2BD9"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="{x:Bind ClassTimeText}"
+                                                   FontSize="10" Foreground="#9575CD"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
                                 </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
-            </Grid>
-        </Border>
+
+                                <!-- Info (center) -->
+                                <StackPanel Grid.Column="1"
+                                            Spacing="4"
+                                            Padding="16,14"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ClassName}"
+                                               FontSize="17" FontWeight="Bold"
+                                               Foreground="#1A1A2E"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{x:Bind ClassRateText}"
+                                                   FontSize="15" FontWeight="SemiBold"
+                                                   Foreground="#D32F2F"/>
+                                        <TextBlock Text="•"
+                                                   FontSize="13" Foreground="#D1D5DB"/>
+                                        <TextBlock Text="{x:Bind RegisDateFormatted}"
+                                                   FontSize="13" Foreground="#6B7280"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE77B;" FontSize="13" Foreground="#9CA3AF"/>
+                                        <TextBlock Text="{x:Bind TrainerDisplayName}"
+                                                   FontSize="14" Foreground="#6B7280"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
     </Grid>
+    </ScrollViewer>
 </Page>

@@ -6,12 +6,15 @@ using Microsoft.UI.Xaml.Controls;
 using TennisApp.Models;
 using TennisApp.Presentation.ViewModels;
 using TennisApp.Helpers;
+using TennisApp.Services;
 
 namespace TennisApp.Presentation.Pages;
 
 public sealed partial class BookingFormPage : Page
 {
     private readonly BookingPageViewModel _vm = new();
+    private NotificationService? _notify;
+    private string _defaultType = "Paid";
 
     public BookingFormPage()
     {
@@ -19,16 +22,36 @@ public sealed partial class BookingFormPage : Page
         this.Loaded += BookingFormPage_Loaded;
     }
 
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        if (e.Parameter is string type && (type == "Paid" || type == "Course"))
+        {
+            _defaultType = type;
+        }
+    }
+
     private async void BookingFormPage_Loaded(object sender, RoutedEventArgs e)
     {
+        _notify = NotificationService.GetFromPage(this);
         try
         {
             await _vm.LoadAvailableCoursesAsync();
             PopulateCourses();
+
+            // Auto-select type based on navigation parameter
+            foreach (ComboBoxItem item in FormTypeComboBox.Items)
+            {
+                if (item.Tag?.ToString() == _defaultType)
+                {
+                    FormTypeComboBox.SelectedItem = item;
+                    break;
+                }
+            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ BookingFormPage_Loaded error: {ex.Message}");
+            _notify?.ShowError($"โหลดข้อมูลล้มเหลว: {ex.Message}");
         }
     }
 
@@ -37,7 +60,11 @@ public sealed partial class BookingFormPage : Page
         FormCourseComboBox.Items.Clear();
         FormCourseComboBox.Items.Add(new ComboBoxItem { Content = "เลือกคอร์ส", IsSelected = true });
         foreach (var course in _vm.AvailableCourses)
-            FormCourseComboBox.Items.Add(new ComboBoxItem { Content = course.ClassTitle, Tag = course.ClassId });
+            FormCourseComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = $"{course.ClassTitle} ({course.TrainerDisplayName})",
+                Tag = course.CompositeKey
+            });
     }
 
     private void BtnBack_Click(object sender, RoutedEventArgs e)
@@ -63,7 +90,7 @@ public sealed partial class BookingFormPage : Page
         {
             if (!ValidateForm(out var message))
             {
-                await ShowMessage("ข้อมูลไม่ครบถ้วน", message);
+                _notify?.ShowWarning(message);
                 return;
             }
 
@@ -87,13 +114,19 @@ public sealed partial class BookingFormPage : Page
             if (!string.IsNullOrEmpty(phone))
                 confirmMsg += $"\nเบอร์โทร: {phone}";
 
-            if (!await ShowConfirm("ยืนยันการจอง", confirmMsg)) return;
+            bool confirmed;
+            if (_notify != null)
+                confirmed = await _notify.ShowConfirmAsync("ยืนยันการจอง", confirmMsg, this.XamlRoot!);
+            else
+                confirmed = await NotificationService.ConfirmAsync("ยืนยันการจอง", confirmMsg, this.XamlRoot!);
 
-            // ตรวจสอบการจองซ้ำ (ชื่อเดียวกัน + วันเดียวกัน + เวลาซ้อนทับ)
-            var isDuplicate = await _vm.HasDuplicateReservationAsync(name, reserveDate, reserveTime, duration);
-            if (isDuplicate)
+            if (!confirmed) return;
+
+            // ตรวจสอบการจองซ้ำ (ชื่อเดียวกัน + วันเดียวกัน + เวลาซ้อนทับ) — cross Paid+Course
+            var duplicateMsg = await _vm.GetDuplicateReservationMessageAsync(name, reserveDate, reserveTime, duration);
+            if (duplicateMsg != null)
             {
-                await ShowMessage("จองซ้ำ", $"พบการจองของ \"{name}\" ในวันที่ {reserveDate:dd/MM/yyyy} ช่วงเวลา {reserveTime:hh\\:mm} - {endTime:hh\\:mm} อยู่แล้ว\nกรุณาเลือกวันหรือเวลาอื่น");
+                _notify?.ShowWarning(duplicateMsg);
                 return;
             }
 
@@ -116,12 +149,14 @@ public sealed partial class BookingFormPage : Page
             }
             else
             {
-                var courseId = (FormCourseComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+                var compositeKey = (FormCourseComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+                var courseKey = CourseKey.Parse(compositeKey ?? string.Empty);
                 var reservation = new CourseCourtReservationItem
                 {
                     ReserveId = ReservationIdGenerator.GenerateCourseReservationId(DateTime.Now),
                     CourtId = "00",
-                    ClassId = courseId ?? string.Empty,
+                    ClassId = courseKey?.ClassId ?? string.Empty,
+                    TrainerId = courseKey?.TrainerId ?? string.Empty,
                     RequestDate = DateTime.Now,
                     ReserveDate = reserveDate,
                     ReserveTime = reserveTime,
@@ -135,17 +170,17 @@ public sealed partial class BookingFormPage : Page
 
             if (success)
             {
-                await ShowMessage("สำเร็จ", "บันทึกการจองเรียบร้อย");
+                _notify?.ShowSuccess("บันทึกการจองเรียบร้อย");
                 if (Frame.CanGoBack) Frame.GoBack();
             }
             else
             {
-                await ShowMessage("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกการจองได้");
+                _notify?.ShowError("ไม่สามารถบันทึกการจองได้");
             }
         }
         catch (Exception ex)
         {
-            await ShowMessage("เกิดข้อผิดพลาด", ex.Message);
+            _notify?.ShowError(ex.Message);
         }
     }
 
@@ -169,32 +204,5 @@ public sealed partial class BookingFormPage : Page
         }
 
         return true;
-    }
-
-    private async Task ShowMessage(string title, string content)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = content,
-            PrimaryButtonText = "ตกลง",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
-        };
-        await dialog.ShowAsync();
-    }
-
-    private async Task<bool> ShowConfirm(string title, string content)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = content,
-            PrimaryButtonText = "ยืนยัน",
-            SecondaryButtonText = "ยกเลิก",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = this.XamlRoot
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 }

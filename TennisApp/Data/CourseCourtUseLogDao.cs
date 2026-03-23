@@ -29,6 +29,11 @@ public class CourseCourtUseLogDao
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // ✅ Enable Foreign Key enforcement
+        var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON";
+        pragmaCommand.ExecuteNonQuery();
+
         var createCommand = connection.CreateCommand();
         createCommand.CommandText = @"
             CREATE TABLE IF NOT EXISTS CourseCourtUseLog (
@@ -96,29 +101,31 @@ public class CourseCourtUseLogDao
     // READ - Select usage logs
     // ========================================================================
 
+    // ─── Shared SQL fragment ──────────────────────────────────
+    private const string SelectWithJoins = @"
+        SELECT 
+            l.c_log_id,
+            l.c_reserve_id,
+            l.c_checkin_time,
+            l.c_log_duration,
+            l.c_log_status,
+            r.court_id,
+            r.class_id,
+            r.c_reserve_name,
+            r.c_reserve_phone,
+            r.c_reserve_date,
+            r.c_reserve_time,
+            co.class_title
+        FROM CourseCourtUseLog l
+        INNER JOIN CourseCourtReservation r ON l.c_reserve_id = r.c_reserve_id
+        INNER JOIN Course co ON r.class_id = co.class_id AND r.trainer_id = co.trainer_id";
+
     /// <summary>
     /// ดึงข้อมูลบันทึกการใช้สนามทั้งหมด (พร้อม JOIN กับ CourseCourtReservation และ Course)
     /// </summary>
     public async Task<List<CourseCourtUseLogItem>> GetAllAsync()
     {
-        const string sql = @"
-            SELECT 
-                l.c_log_id,
-                l.c_reserve_id,
-                l.c_checkin_time,
-                l.c_log_duration,
-                l.c_log_status,
-                r.court_id,
-                r.class_id,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                co.class_title
-            FROM CourseCourtUseLog l
-            INNER JOIN CourseCourtReservation r ON l.c_reserve_id = r.c_reserve_id
-            INNER JOIN Course co ON r.class_id = co.class_id
-            ORDER BY l.c_checkin_time DESC";
+        var sql = SelectWithJoins + " ORDER BY l.c_checkin_time DESC";
 
         var logs = new List<CourseCourtUseLogItem>();
 
@@ -150,24 +157,7 @@ public class CourseCourtUseLogDao
     /// </summary>
     public async Task<CourseCourtUseLogItem?> GetByIdAsync(string logId)
     {
-        const string sql = @"
-            SELECT 
-                l.c_log_id,
-                l.c_reserve_id,
-                l.c_checkin_time,
-                l.c_log_duration,
-                l.c_log_status,
-                r.court_id,
-                r.class_id,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                co.class_title
-            FROM CourseCourtUseLog l
-            INNER JOIN CourseCourtReservation r ON l.c_reserve_id = r.c_reserve_id
-            INNER JOIN Course co ON r.class_id = co.class_id
-            WHERE l.c_log_id = @log_id";
+        var sql = SelectWithJoins + " WHERE l.c_log_id = @log_id";
 
         try
         {
@@ -196,24 +186,7 @@ public class CourseCourtUseLogDao
     /// </summary>
     public async Task<CourseCourtUseLogItem?> GetByReserveIdAsync(string reserveId)
     {
-        const string sql = @"
-            SELECT 
-                l.c_log_id,
-                l.c_reserve_id,
-                l.c_checkin_time,
-                l.c_log_duration,
-                l.c_log_status,
-                r.court_id,
-                r.class_id,
-                r.c_reserve_name,
-                r.c_reserve_phone,
-                r.c_reserve_date,
-                r.c_reserve_time,
-                co.class_title
-            FROM CourseCourtUseLog l
-            INNER JOIN CourseCourtReservation r ON l.c_reserve_id = r.c_reserve_id
-            INNER JOIN Course co ON r.class_id = co.class_id
-            WHERE l.c_reserve_id = @reserve_id";
+        var sql = SelectWithJoins + " WHERE l.c_reserve_id = @reserve_id";
 
         try
         {
@@ -290,6 +263,12 @@ public class CourseCourtUseLogDao
         {
             await using var connection = new SqliteConnection(_connectionString);
             await connection.OpenAsync();
+
+            // ✅ Enable Foreign Key enforcement
+            await using var pragmaCmd = connection.CreateCommand();
+            pragmaCmd.CommandText = "PRAGMA foreign_keys = ON";
+            await pragmaCmd.ExecuteNonQueryAsync();
+
             await using var command = connection.CreateCommand();
             command.CommandText = sql;
             command.Parameters.AddWithValue("@log_id", logId);

@@ -16,7 +16,7 @@ namespace TennisApp.Presentation.ViewModels;
 /// </summary>
 public partial class RegisterCoursePageViewModel : ObservableObject
 {
-    private readonly DatabaseService _databaseService;
+    private readonly DatabaseService _databaseService = null!;
     
     [ObservableProperty]
     private string _searchKeyword = string.Empty;
@@ -49,7 +49,7 @@ public partial class RegisterCoursePageViewModel : ObservableObject
         
         try
         {
-            _databaseService = new DatabaseService();
+            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
             System.Diagnostics.Debug.WriteLine("✅ DatabaseService created successfully");
         }
         catch (Exception ex)
@@ -179,14 +179,14 @@ public partial class RegisterCoursePageViewModel : ObservableObject
     /// <summary>
     /// Register a trainee to a course
     /// </summary>
-    public async Task<bool> RegisterToCourseAsync(string traineeId, string classId)
+    public async Task<bool> RegisterToCourseAsync(string traineeId, string classId, string trainerId)
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"📝 Registering trainee {traineeId} to course {classId}...");
+            System.Diagnostics.Debug.WriteLine($"📝 Registering trainee {traineeId} to course {classId} (trainer: {trainerId})...");
 
             // Check if already registered
-            var exists = await _databaseService.Registrations.RegistrationExistsAsync(traineeId, classId);
+            var exists = await _databaseService.Registrations.RegistrationExistsAsync(traineeId, classId, trainerId);
             if (exists)
             {
                 System.Diagnostics.Debug.WriteLine($"⚠️ Trainee already registered to this course");
@@ -198,6 +198,7 @@ public partial class RegisterCoursePageViewModel : ObservableObject
             {
                 TraineeId = traineeId,
                 ClassId = classId,
+                TrainerId = trainerId,
                 RegisDate = DateTime.Now
             };
 
@@ -240,13 +241,13 @@ public partial class RegisterCoursePageViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Get course details by ID
+    /// Get course details by composite key
     /// </summary>
-    public async Task<CourseItem?> GetCourseByIdAsync(string classId)
+    public async Task<CourseItem?> GetCourseByKeyAsync(string classId, string trainerId)
     {
         try
         {
-            return await _databaseService.Courses.GetCourseByIdAsync(classId);
+            return await _databaseService.Courses.GetCourseByKeyAsync(classId, trainerId);
         }
         catch (Exception ex)
         {

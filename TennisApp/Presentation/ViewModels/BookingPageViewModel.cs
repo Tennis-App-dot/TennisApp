@@ -17,7 +17,7 @@ namespace TennisApp.Presentation.ViewModels;
 /// </summary>
 public partial class BookingPageViewModel : ObservableObject
 {
-    private readonly DatabaseService _databaseService;
+    private readonly DatabaseService _databaseService = null!;
 
     // ========================================================================
     // Collections
@@ -95,7 +95,7 @@ public partial class BookingPageViewModel : ObservableObject
     {
         get
         {
-            var endTime = _selectedTime.Add(TimeSpan.FromHours(_selectedDuration));
+            var endTime = SelectedTime.Add(TimeSpan.FromHours(SelectedDuration));
             return endTime.ToString(@"hh\:mm");
         }
     }
@@ -103,7 +103,7 @@ public partial class BookingPageViewModel : ObservableObject
     /// <summary>
     /// แสดง/ซ่อน ComboBox สำหรับเลือกคอร์ส
     /// </summary>
-    public bool IsCourseReservation => _reservationType == "Course";
+    public bool IsCourseReservation => ReservationType == "Course";
 
     // ========================================================================
     // Constructor
@@ -115,7 +115,7 @@ public partial class BookingPageViewModel : ObservableObject
 
         try
         {
-            _databaseService = new DatabaseService();
+            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
             _databaseService.EnsureInitialized();
             System.Diagnostics.Debug.WriteLine("✅ DatabaseService สร้างสำเร็จ");
         }
@@ -593,6 +593,63 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"❌ Error checking duplicate reservation: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// ตรวจสอบการจองซ้ำและคืนข้อความอธิบาย (null = ไม่ซ้ำ)
+    /// เช็คทั้ง Paid และ Course cross-table
+    /// </summary>
+    public async Task<string?> GetDuplicateReservationMessageAsync(
+        string reserveName, DateTime reserveDate, TimeSpan startTime, double duration, string? excludeReserveId = null)
+    {
+        try
+        {
+            var endTime = startTime.Add(TimeSpan.FromHours(duration));
+
+            // Check Paid table
+            var paidList = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(reserveDate).ConfigureAwait(false);
+            var paidConflict = paidList.FirstOrDefault(r =>
+                r.ReserveName.Equals(reserveName, StringComparison.OrdinalIgnoreCase) &&
+                r.ReserveId != (excludeReserveId ?? "") &&
+                r.Status is "booked" or "in_use" &&
+                r.ReserveTime < endTime &&
+                r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
+
+            if (paidConflict != null)
+            {
+                var cEnd = paidConflict.ReserveTime.Add(TimeSpan.FromHours(paidConflict.Duration));
+                return $"พบการจองเช่าสนามของ \"{paidConflict.ReserveName}\"\n" +
+                       $"วันที่ {reserveDate:dd/MM/yyyy}\n" +
+                       $"เวลา {paidConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
+                       $"รหัสจอง: {paidConflict.ReserveId}";
+            }
+
+            // Check Course table
+            var courseList = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(reserveDate).ConfigureAwait(false);
+            var courseConflict = courseList.FirstOrDefault(r =>
+                r.ReserveName.Equals(reserveName, StringComparison.OrdinalIgnoreCase) &&
+                r.ReserveId != (excludeReserveId ?? "") &&
+                r.Status is "booked" or "in_use" &&
+                r.ReserveTime < endTime &&
+                r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
+
+            if (courseConflict != null)
+            {
+                var cEnd = courseConflict.ReserveTime.Add(TimeSpan.FromHours(courseConflict.Duration));
+                return $"พบการจองคอร์สของ \"{courseConflict.ReserveName}\"\n" +
+                       $"คอร์ส: {courseConflict.ClassDisplayName}\n" +
+                       $"วันที่ {reserveDate:dd/MM/yyyy}\n" +
+                       $"เวลา {courseConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
+                       $"รหัสจอง: {courseConflict.ReserveId}";
+            }
+
+            return null; // ไม่ซ้ำ
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ GetDuplicateReservationMessage: {ex.Message}");
+            return null;
         }
     }
 

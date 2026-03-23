@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using TennisApp.Presentation.ViewModels;
 using TennisApp.Models;
+using TennisApp.Services;
 using System.Linq;
 
 namespace TennisApp.Presentation.Pages;
@@ -11,6 +12,7 @@ namespace TennisApp.Presentation.Pages;
 public sealed partial class TraineePage : Page
 {
     public TraineePageViewModel ViewModel { get; }
+    private NotificationService? _notify;
 
     public TraineePage()
     {
@@ -27,9 +29,7 @@ public sealed partial class TraineePage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        
-        // โหลดข้อมูลทุกครั้งที่เข้าหน้านี้ (เพื่อแสดงข้อมูลใหม่หลังจาก Add/Edit)
-        System.Diagnostics.Debug.WriteLine("TraineePage: OnNavigatedTo - Loading trainees...");
+        _notify = NotificationService.GetFromPage(this);
         await ViewModel.LoadTraineesAsync();
     }
 
@@ -51,7 +51,7 @@ public sealed partial class TraineePage : Page
 
     private void TraineeRow_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (sender is Grid grid && grid.DataContext is TraineeItem trainee)
+        if (sender is FrameworkElement element && element.DataContext is TraineeItem trainee)
         {
             System.Diagnostics.Debug.WriteLine($"📋 Row tapped: {trainee.TraineeId}");
             ShowDetailCard(trainee);
@@ -79,10 +79,13 @@ public sealed partial class TraineePage : Page
     private void DetailOverlay_Tapped(object sender, TappedRoutedEventArgs e)
     {
         // Close when tapping outside the card
-        if (e.OriginalSource == DetailOverlay)
-        {
-            HideDetailCard();
-        }
+        HideDetailCard();
+    }
+
+    private void DetailCard_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Prevent closing when tapping on the card itself
+        e.Handled = true;
     }
 
     private void DetailCard_EditRequested(object? sender, string traineeId)
@@ -126,113 +129,20 @@ public sealed partial class TraineePage : Page
 
     private async System.Threading.Tasks.Task ShowDeleteConfirmationAndDelete(string traineeId)
     {
-        System.Diagnostics.Debug.WriteLine($"TraineePage: Delete trainee requested: {traineeId}");
+        if (_notify == null) return;
 
-        // สร้าง TextBlock สำหรับ Title
-        var titleTextBlock = new TextBlock
+        bool confirmed = await _notify.ShowDeleteConfirmAsync(
+            $"ผู้เรียนรหัส {traineeId}",
+            this.XamlRoot!);
+
+        if (confirmed)
         {
-            Text = "ยืนยันการลบ",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        // สร้าง TextBlock สำหรับ Content
-        var contentTextBlock = new TextBlock
-        {
-            Text = $"คุณต้องการลบผู้เรียนรหัส {traineeId} ใช่หรือไม่?",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        // แสดง confirmation dialog
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            PrimaryButtonText = "ลบ",
-            CloseButtonText = "ยกเลิก",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        var result = await dialog.ShowAsync();
-
-        if (result == ContentDialogResult.Primary)
-        {
-            // ลบข้อมูล
             var success = await ViewModel.DeleteTraineeAsync(traineeId);
 
             if (success)
-            {
-                System.Diagnostics.Debug.WriteLine("✅ Trainee deleted successfully");
-                await ShowSuccessDialog("ลบข้อมูลผู้เรียนเรียบร้อยแล้ว");
-            }
+                _notify.ShowSuccess("ลบข้อมูลผู้เรียนเรียบร้อยแล้ว");
             else
-            {
-                System.Diagnostics.Debug.WriteLine("❌ Failed to delete trainee");
-                await ShowErrorDialog("เกิดข้อผิดพลาดในการลบข้อมูล");
-            }
+                _notify.ShowError("เกิดข้อผิดพลาดในการลบข้อมูล");
         }
-    }
-
-    private async System.Threading.Tasks.Task ShowSuccessDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "สำเร็จ",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green)
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
-    }
-
-    private async System.Threading.Tasks.Task ShowErrorDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red)
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans ไทย"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
     }
 }

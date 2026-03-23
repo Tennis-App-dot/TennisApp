@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using TennisApp.Presentation.Pages;
+using TennisApp.Services;
 using System.Collections.Generic;
 
 namespace TennisApp.Presentation;
@@ -13,15 +14,19 @@ public sealed partial class Shell : UserControl
         ["Trainee"] = typeof(TraineePage),
         ["Course"] = typeof(CoursePage),
         ["RegisterCourse"] = typeof(RegisterCoursePage),
-        ["Booking"] = typeof(BookingPage),
+        ["PaidBooking"] = typeof(PaidBookingPage),
+        ["CourseBooking"] = typeof(CourseBookingPage),
         ["UsageLog"] = typeof(CourtUsageLogPage),
         ["Reports"] = typeof(ReportsPage)
     };
 
+    public NotificationService NotificationService { get; } = new();
+
     public Shell()
     {
         InitializeComponent();
-        System.Diagnostics.Debug.WriteLine("Shell constructor - initializing Shell");
+        NotificationService.Initialize(GlobalInfoBar);
+        System.Diagnostics.Debug.WriteLine("Shell constructor - initializing Shell + NotificationService");
     }
 
     private void NavView_Loaded(object sender, RoutedEventArgs e)

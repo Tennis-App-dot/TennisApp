@@ -1,6 +1,9 @@
+using System;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using TennisApp.Helpers;
 using TennisApp.Models;
 using TennisApp.Services;
 
@@ -9,8 +12,10 @@ namespace TennisApp.Presentation.Pages;
 public sealed partial class CourseEditPage : Page
 {
     private readonly DatabaseService _database;
-    private string _classId = string.Empty;
     private CourseItem? _currentCourse;
+    private string _oldTrainerId = string.Empty;
+    private NotificationService? _notify;
+    private bool _isDuplicate;
 
     public CourseEditPage()
     {
@@ -21,40 +26,46 @@ public sealed partial class CourseEditPage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        _notify = NotificationService.GetFromPage(this);
 
-        if (e.Parameter is string classId)
+        if (e.Parameter is string compositeKey)
         {
-            _classId = classId;
-            await LoadCourseDataAsync(classId);
-            await LoadTrainersAsync();
+            var key = CourseKey.Parse(compositeKey);
+            if (key != null)
+            {
+                await LoadCourseDataAsync(key.ClassId, key.TrainerId);
+            }
         }
     }
 
-    private async System.Threading.Tasks.Task LoadCourseDataAsync(string classId)
+    private async System.Threading.Tasks.Task LoadCourseDataAsync(string classId, string trainerId)
     {
         try
         {
-            _currentCourse = await _database.Courses.GetCourseByIdAsync(classId);
+            _currentCourse = await _database.Courses.GetCourseByKeyAsync(classId, trainerId);
 
-            if (_currentCourse != null)
+            if (_currentCourse == null)
             {
-                TxtCourseId.Text = _currentCourse.ClassId;
-                TxtCourseName.Text = _currentCourse.ClassTitle;
-
-                // Load tier pricing
-                TxtRatePerTime.Text = _currentCourse.ClassRatePerTime > 0 ? _currentCourse.ClassRatePerTime.ToString() : "";
-                TxtRate4.Text = _currentCourse.ClassRate4 > 0 ? _currentCourse.ClassRate4.ToString() : "";
-                TxtRate8.Text = _currentCourse.ClassRate8 > 0 ? _currentCourse.ClassRate8.ToString() : "";
-                TxtRate12.Text = _currentCourse.ClassRate12 > 0 ? _currentCourse.ClassRate12.ToString() : "";
-                TxtRate16.Text = _currentCourse.ClassRate16 > 0 ? _currentCourse.ClassRate16.ToString() : "";
-                TxtRateMonthly.Text = _currentCourse.ClassRateMonthly > 0 ? _currentCourse.ClassRateMonthly.ToString() : "";
-
-                System.Diagnostics.Debug.WriteLine($"✅ Loaded course data: {classId}");
+                _notify?.ShowError("ไม่พบข้อมูลคอร์ส");
+                if (Frame.CanGoBack) Frame.GoBack();
+                return;
             }
+
+            _oldTrainerId = _currentCourse.TrainerId;
+
+            // Display read-only info
+            TxtClassId.Text = _currentCourse.ClassId;
+            TxtTitle.Text = _currentCourse.ClassTitle;
+            TxtSessions.Text = _currentCourse.SessionCountText;
+            TxtPrice.Text = $"฿{_currentCourse.ClassRate:N0}";
+            TxtCurrentTrainer.Text = _currentCourse.TrainerDisplayName;
+
+            await LoadTrainersAsync();
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"❌ Error loading course: {ex.Message}");
+            _notify?.ShowError("ไม่สามารถโหลดข้อมูลคอร์สได้");
         }
     }
 
@@ -63,145 +74,87 @@ public sealed partial class CourseEditPage : Page
         try
         {
             var trainers = await _database.Trainers.GetAllTrainersAsync();
-
             CmbTrainer.Items.Clear();
             foreach (var trainer in trainers)
             {
-                var item = new ComboBoxItem
+                // Skip current trainer
+                if (trainer.TrainerId == _oldTrainerId) continue;
+
+                CmbTrainer.Items.Add(new ComboBoxItem
                 {
                     Content = $"{trainer.FirstName} {trainer.LastName}",
                     Tag = trainer.TrainerId
-                };
-                CmbTrainer.Items.Add(item);
-
-                if (_currentCourse != null && trainer.TrainerId == _currentCourse.TrainerId)
-                {
-                    CmbTrainer.SelectedItem = item;
-                }
+                });
             }
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"❌ Error loading trainers: {ex.Message}");
         }
     }
 
+    private async void CmbTrainer_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_currentCourse == null) return;
+        if (CmbTrainer.SelectedItem is not ComboBoxItem item) return;
+
+        var newTrainerId = item.Tag?.ToString();
+        if (string.IsNullOrEmpty(newTrainerId)) return;
+
+        // Check if this combination already exists
+        try
+        {
+            _isDuplicate = await _database.Courses.CourseExistsAsync(_currentCourse.ClassId, newTrainerId);
+            DuplicateWarning.Visibility = _isDuplicate ? Visibility.Visible : Visibility.Collapsed;
+            BtnSave.IsEnabled = !_isDuplicate;
+        }
+        catch
+        {
+            _isDuplicate = false;
+            DuplicateWarning.Visibility = Visibility.Collapsed;
+            BtnSave.IsEnabled = true;
+        }
+    }
+
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
+        if (Frame.CanGoBack) Frame.GoBack();
     }
 
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(TxtCourseName.Text))
+        if (_currentCourse == null) return;
+
+        if (CmbTrainer.SelectedItem is not ComboBoxItem selectedItem)
         {
-            await ShowErrorDialog("กรุณากรอกชื่อคอร์ส");
+            _notify?.ShowWarning("กรุณาเลือกผู้ฝึกสอนใหม่");
             return;
         }
 
-        // Parse tier pricing
-        int.TryParse(TxtRatePerTime.Text, out var ratePerTime);
-        int.TryParse(TxtRate4.Text, out var rate4);
-        int.TryParse(TxtRate8.Text, out var rate8);
-        int.TryParse(TxtRate12.Text, out var rate12);
-        int.TryParse(TxtRate16.Text, out var rate16);
-        int.TryParse(TxtRateMonthly.Text, out var rateMonthly);
-
-        var trainerId = CmbTrainer.SelectedItem is ComboBoxItem selectedTrainer
-            ? selectedTrainer.Tag?.ToString()
-            : null;
-
-        var course = new CourseItem
+        var newTrainerId = selectedItem.Tag?.ToString();
+        if (string.IsNullOrEmpty(newTrainerId))
         {
-            ClassId = TxtCourseId.Text,
-            ClassTitle = TxtCourseName.Text,
-            ClassTime = _currentCourse?.ClassTime ?? 0,
-            ClassDuration = 1,
-            ClassRate = ratePerTime,
-            ClassRatePerTime = ratePerTime,
-            ClassRate4 = rate4,
-            ClassRate8 = rate8,
-            ClassRate12 = rate12,
-            ClassRate16 = rate16,
-            ClassRateMonthly = rateMonthly,
-            TrainerId = trainerId ?? string.Empty
-        };
+            _notify?.ShowWarning("กรุณาเลือกผู้ฝึกสอนใหม่");
+            return;
+        }
 
-        var success = await _database.Courses.UpdateCourseAsync(course);
+        if (_isDuplicate)
+        {
+            _notify?.ShowWarning("คอร์สนี้ + ผู้ฝึกสอนคนใหม่มีอยู่แล้วในระบบ");
+            return;
+        }
+
+        var success = await _database.Courses.UpdateCourseTrainerAsync(
+            _currentCourse.ClassId, _oldTrainerId, newTrainerId);
 
         if (success)
         {
-            await ShowSuccessDialog("บันทึกข้อมูลคอร์สเรียบร้อยแล้ว");
-
-            if (Frame.CanGoBack)
-            {
-                Frame.GoBack();
-            }
+            _notify?.ShowSuccess("เปลี่ยนผู้ฝึกสอนเรียบร้อยแล้ว");
+            if (Frame.CanGoBack) Frame.GoBack();
         }
         else
         {
-            await ShowErrorDialog("ไม่สามารถบันทึกข้อมูลได้");
+            _notify?.ShowError("ไม่สามารถบันทึกข้อมูลได้");
         }
-    }
-
-    private async System.Threading.Tasks.Task ShowErrorDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
-    }
-
-    private async System.Threading.Tasks.Task ShowSuccessDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "สำเร็จ",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
     }
 }

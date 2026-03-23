@@ -126,7 +126,8 @@ public sealed partial class RegisterCoursePage : Page
 
             try
             {
-                var success = await _database.Registrations.DeleteRegistrationAsync(record.TraineeId, record.ClassId);
+                var success = await _database.Registrations.DeleteRegistrationAsync(
+                    record.TraineeId, record.ClassId, record.TrainerId);
                 if (success)
                 {
                     await LoadRegistrationsAsync();

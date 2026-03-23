@@ -80,10 +80,9 @@ public static class ImageHelper
                 System.Diagnostics.Debug.WriteLine($"📐 Resizing to: {newWidth}x{newHeight}");
 
                 // Resize
-                var resizedBitmap = originalBitmap.Resize(
-                    new SKImageInfo(newWidth, newHeight),
-                    SKFilterQuality.High
-                );
+                var resizedInfo = new SKImageInfo(newWidth, newHeight);
+                var resizedSampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
+                var resizedBitmap = originalBitmap.Resize(resizedInfo, resizedSampling);
 
                 if (resizedBitmap == null)
                 {
@@ -92,7 +91,7 @@ public static class ImageHelper
                 }
 
                 // Encode เป็น JPEG ด้วย quality ที่ปรับได้
-                byte[] result = null;
+                byte[]? result = null;
                 int quality = 90;
 
                 while (quality >= 50)
@@ -168,7 +167,7 @@ public static class ImageHelper
 
             var dialog = new ImageCropperDialog(imageData)
             {
-                XamlRoot = App.MainWindow.Content.XamlRoot
+                XamlRoot = App.MainWindow?.Content?.XamlRoot!
             };
 
             var result = await dialog.ShowAsync();
@@ -260,9 +259,9 @@ public static class ImageHelper
     }
 
     /// <summary>
-    /// ตรวจสอบขนาดไฟล์
+    /// ตรวจสอบขนาดไฟล์ (ไม่เกิน 10MB — จะ compress ลงเหลือ 3MB ภายหลัง)
     /// </summary>
-    public static async Task<bool> IsFileSizeValidAsync(StorageFile file, ulong maxSizeBytes = 10 * 1024 * 1024) // เพิ่มเป็น 10MB
+    public static async Task<bool> IsFileSizeValidAsync(StorageFile file, ulong maxSizeBytes = 10 * 1024 * 1024)
     {
         var properties = await file.GetBasicPropertiesAsync();
         return properties.Size <= maxSizeBytes;

@@ -1,5 +1,8 @@
+using System;
+using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using TennisApp.Helpers;
 using TennisApp.Models;
 using TennisApp.Services;
 
@@ -8,13 +11,39 @@ namespace TennisApp.Presentation.Pages;
 public sealed partial class CourseFormPage : Page
 {
     private readonly DatabaseService _database;
+    private NotificationService? _notify;
+
+    private string? _selectedCourseType;
+    private int _selectedSessions = -1;
+    private string? _selectedTrainerId;
+    private string? _selectedTrainerName;
+    private bool _isDuplicate;
 
     public CourseFormPage()
     {
         InitializeComponent();
         _database = ((App)Application.Current).DatabaseService;
+        this.Loaded += CourseFormPage_Loaded;
+    }
 
-        _ = LoadTrainersAsync();
+    private async void CourseFormPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        _notify = NotificationService.GetFromPage(this);
+        LoadCourseTypes();
+        await LoadTrainersAsync();
+    }
+
+    private void LoadCourseTypes()
+    {
+        CmbCourseType.Items.Clear();
+        foreach (var type in CoursePricingHelper.GetAllCourseTypes())
+        {
+            CmbCourseType.Items.Add(new ComboBoxItem
+            {
+                Content = CoursePricingHelper.GetCourseDisplayName(type),
+                Tag = type
+            });
+        }
     }
 
     private async System.Threading.Tasks.Task LoadTrainersAsync()
@@ -22,163 +51,141 @@ public sealed partial class CourseFormPage : Page
         try
         {
             var trainers = await _database.Trainers.GetAllTrainersAsync();
-
             CmbTrainer.Items.Clear();
             foreach (var trainer in trainers)
             {
-                var item = new ComboBoxItem
+                CmbTrainer.Items.Add(new ComboBoxItem
                 {
                     Content = $"{trainer.FirstName} {trainer.LastName}",
                     Tag = trainer.TrainerId
-                };
-                CmbTrainer.Items.Add(item);
+                });
             }
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"❌ Error loading trainers: {ex.Message}");
         }
     }
 
+    private void CmbCourseType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbCourseType.SelectedItem is ComboBoxItem item && item.Tag is string courseType)
+        {
+            _selectedCourseType = courseType;
+            _selectedSessions = -1;
+
+            // Populate session ComboBox with valid sessions for this type
+            CmbSessionCount.Items.Clear();
+            var validSessions = CoursePricingHelper.GetValidSessions(courseType);
+            foreach (var sessions in validSessions)
+            {
+                var price = CoursePricingHelper.GetPrice(courseType, sessions);
+                var text = $"{CoursePricingHelper.GetSessionDisplayText(sessions)}  —  ฿{price:N0}";
+                CmbSessionCount.Items.Add(new ComboBoxItem
+                {
+                    Content = text,
+                    Tag = sessions.ToString()
+                });
+            }
+
+            CmbSessionCount.IsEnabled = true;
+            CmbSessionCount.SelectedIndex = -1;
+            UpdateSummary();
+        }
+    }
+
+    private void CmbSessionCount_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbSessionCount.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            if (int.TryParse(tag, out var sessions))
+            {
+                _selectedSessions = sessions;
+                UpdateSummary();
+            }
+        }
+    }
+
+    private void CmbTrainer_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbTrainer.SelectedItem is ComboBoxItem item)
+        {
+            _selectedTrainerId = item.Tag?.ToString();
+            _selectedTrainerName = item.Content?.ToString();
+            UpdateSummary();
+        }
+    }
+
+    private async void UpdateSummary()
+    {
+        bool hasAll = _selectedCourseType != null && _selectedSessions >= 0 && !string.IsNullOrEmpty(_selectedTrainerId);
+
+        if (!hasAll || _selectedCourseType == null || _selectedTrainerId == null)
+        {
+            SummarySection.Visibility = Visibility.Collapsed;
+            BtnSave.IsEnabled = false;
+            return;
+        }
+
+        var classId = CoursePricingHelper.GenerateClassId(_selectedCourseType, _selectedSessions);
+        var price = CoursePricingHelper.GetPrice(_selectedCourseType, _selectedSessions);
+        var title = CoursePricingHelper.GetCourseName(_selectedCourseType);
+        var sessionsText = CoursePricingHelper.GetSessionDisplayText(_selectedSessions);
+
+        TxtSummaryClassId.Text = classId;
+        TxtSummaryTitle.Text = title;
+        TxtSummarySessions.Text = sessionsText;
+        TxtSummaryPrice.Text = $"฿{price:N0}";
+        TxtSummaryTrainer.Text = _selectedTrainerName ?? "ไม่ระบุ";
+
+        SummarySection.Visibility = Visibility.Visible;
+
+        // Check duplicate
+        try
+        {
+            _isDuplicate = await _database.Courses.CourseExistsAsync(classId, _selectedTrainerId);
+            DuplicateWarning.Visibility = _isDuplicate ? Visibility.Visible : Visibility.Collapsed;
+            BtnSave.IsEnabled = !_isDuplicate;
+        }
+        catch
+        {
+            _isDuplicate = false;
+            DuplicateWarning.Visibility = Visibility.Collapsed;
+            BtnSave.IsEnabled = true;
+        }
+    }
+
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
+        if (Frame.CanGoBack) Frame.GoBack();
     }
 
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        // Validate required fields
-        if (string.IsNullOrWhiteSpace(TxtCourseId.Text))
+        if (_selectedCourseType == null || _selectedSessions < 0 || string.IsNullOrEmpty(_selectedTrainerId))
         {
-            await ShowErrorDialog("กรุณากรอกรหัสคอร์ส");
+            _notify?.ShowWarning("กรุณาเลือกข้อมูลให้ครบทุกช่อง");
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(TxtCourseName.Text))
+        if (_isDuplicate)
         {
-            await ShowErrorDialog("กรุณากรอกชื่อคอร์ส");
+            _notify?.ShowWarning("คอร์สนี้ + ผู้ฝึกสอนคนนี้มีอยู่แล้วในระบบ");
             return;
         }
 
-        if (CmbTrainer.SelectedItem == null)
-        {
-            await ShowErrorDialog("กรุณาเลือกผู้รับผิดชอบคอร์ส");
-            return;
-        }
+        var course = CourseItem.Create(_selectedCourseType, _selectedSessions, _selectedTrainerId, _selectedTrainerName);
 
-        // Check if course already exists
-        var courseId = TxtCourseId.Text.Trim().ToUpper();
-        if (await _database.Courses.CourseExistsAsync(courseId))
-        {
-            await ShowErrorDialog($"รหัสคอร์ส {courseId} มีอยู่แล้ว");
-            return;
-        }
-
-        // Parse tier pricing (0 if empty or invalid)
-        int.TryParse(TxtRatePerTime.Text, out var ratePerTime);
-        int.TryParse(TxtRate4.Text, out var rate4);
-        int.TryParse(TxtRate8.Text, out var rate8);
-        int.TryParse(TxtRate12.Text, out var rate12);
-        int.TryParse(TxtRate16.Text, out var rate16);
-        int.TryParse(TxtRateMonthly.Text, out var rateMonthly);
-
-        var trainerId = CmbTrainer.SelectedItem is ComboBoxItem selectedTrainer
-            ? selectedTrainer.Tag?.ToString()
-            : null;
-
-        // Create course object
-        var course = new CourseItem
-        {
-            ClassId = courseId,
-            ClassTitle = TxtCourseName.Text,
-            ClassTime = 0,
-            ClassDuration = 1,
-            ClassRate = ratePerTime,
-            ClassRatePerTime = ratePerTime,
-            ClassRate4 = rate4,
-            ClassRate8 = rate8,
-            ClassRate12 = rate12,
-            ClassRate16 = rate16,
-            ClassRateMonthly = rateMonthly,
-            TrainerId = trainerId ?? string.Empty
-        };
-
-        // Save to database
         var success = await _database.Courses.AddCourseAsync(course);
 
         if (success)
         {
-            await ShowSuccessDialog("บันทึกข้อมูลคอร์สเรียบร้อยแล้ว");
-
-            if (Frame.CanGoBack)
-            {
-                Frame.GoBack();
-            }
+            _notify?.ShowSuccess("บันทึกข้อมูลคอร์สเรียบร้อยแล้ว");
+            if (Frame.CanGoBack) Frame.GoBack();
         }
         else
         {
-            await ShowErrorDialog("ไม่สามารถบันทึกข้อมูลได้");
+            _notify?.ShowError("ไม่สามารถบันทึกข้อมูลได้");
         }
-    }
-
-    private async System.Threading.Tasks.Task ShowErrorDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
-    }
-
-    private async System.Threading.Tasks.Task ShowSuccessDialog(string message)
-    {
-        var titleTextBlock = new TextBlock
-        {
-            Text = "สำเร็จ",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
-        {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
     }
 }

@@ -19,29 +19,13 @@ public class CourseCardItem : INotifyPropertyChanged
     public string ClassId => Course.ClassId;
     public string ClassTitle => Course.ClassTitle;
     public string TrainerName => Course.TrainerDisplayName;
+    public string TrainerId => Course.TrainerId;
+    public string CompositeKey => Course.CompositeKey;
     public bool HasTrainer => !string.IsNullOrWhiteSpace(Course.TrainerName);
 
-    /// <summary>
-    /// Default number of sessions from class_time
-    /// </summary>
-    public string SessionsText => Course.ClassTime > 0 ? $"{Course.ClassTime} ครั้ง" : "ครั้งละ";
+    public string SessionsText => Course.SessionCountText;
 
-    /// <summary>
-    /// Lowest available price for quick display
-    /// </summary>
-    public int DefaultPrice
-    {
-        get
-        {
-            if (Course.ClassRatePerTime > 0) return Course.ClassRatePerTime;
-            if (Course.ClassRate4 > 0) return Course.ClassRate4;
-            if (Course.ClassRate8 > 0) return Course.ClassRate8;
-            if (Course.ClassRate12 > 0) return Course.ClassRate12;
-            if (Course.ClassRate16 > 0) return Course.ClassRate16;
-            if (Course.ClassRateMonthly > 0) return Course.ClassRateMonthly;
-            return 0;
-        }
-    }
+    public int DefaultPrice => Course.ClassRate;
 
     public string DefaultPriceText => DefaultPrice > 0 ? $"฿{DefaultPrice:N0}" : "-";
 
