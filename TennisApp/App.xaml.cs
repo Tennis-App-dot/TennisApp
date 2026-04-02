@@ -12,6 +12,9 @@ public partial class App : Application
     {
         InitializeComponent();
 
+        // ✅ Force Light theme — ทุกหน้า UI ออกแบบสำหรับ Light mode
+        this.RequestedTheme = ApplicationTheme.Light;
+
 #if ANDROID
         ApplicationLanguages.PrimaryLanguageOverride = "th-TH";
 #endif
@@ -140,7 +143,7 @@ public partial class App : Application
             resources[type] = defaultStyle;
         }
 
-        // Additional control styles
+        // Additional control styles — ensure readable text on any device
         var additionalControls = new[]
         {
             typeof(TextBox), typeof(ComboBox), typeof(RadioButton),
@@ -155,6 +158,9 @@ public partial class App : Application
             {
                 style.Setters.Add(new Setter(Control.FontSizeProperty, 14.0));
             }
+            // ✅ Ensure text is dark on light backgrounds for all input controls
+            style.Setters.Add(new Setter(Control.ForegroundProperty,
+                new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 27, 31))));
             resources[type] = style;
         }
 
@@ -210,9 +216,11 @@ public partial class App : Application
         try
         {
             System.Diagnostics.Debug.WriteLine("Starting Database Initialization (async)...");
-
             // ✅ สร้างตารางทั้งหมดบน background thread
             await DatabaseService.InitializeAsync();
+
+            // ✅ โหลดข้อมูลประเภทคอร์ส + ราคาจาก DB เข้า cache
+            await Helpers.CoursePricingHelper.LoadFromDatabaseAsync(DatabaseService);
 
             System.Diagnostics.Debug.WriteLine($"Database Path: {DatabaseService.GetDatabasePath()}");
             System.Diagnostics.Debug.WriteLine($"Database Ready: {DatabaseService.IsDatabaseReady()}");

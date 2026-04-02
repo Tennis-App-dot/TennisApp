@@ -11,7 +11,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- ══ Header ═══════════════════════════════════════ -->
@@ -29,155 +28,176 @@
                                VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
-            <TextBlock Grid.Column="1" Text="จองเช่าสนาม"
+            <TextBlock Grid.Column="1" x:Name="HeaderText" Text="จองเช่าสนาม"
                        FontSize="24" FontWeight="Bold" Foreground="#333"
                        VerticalAlignment="Center" Margin="12,0,0,0"/>
         </Grid>
 
-        <!-- ══ Form Card ════════════════════════════════════ -->
-        <Border Grid.Row="1" Background="White" CornerRadius="12"
-                BorderBrush="#E8E8E8" BorderThickness="1"
-                Margin="20,0,20,0" Padding="20,20">
-            <StackPanel Spacing="16">
+        <!-- ══ Scrollable Form ═══════════════════════════════ -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+            <Border Background="White" CornerRadius="12"
+                    BorderBrush="#E8E8E8" BorderThickness="1"
+                    Margin="20,0,20,20" Padding="20,20"
+                    VerticalAlignment="Top">
+                <StackPanel Spacing="18">
 
-                <!-- วันที่ -->
-                <StackPanel Spacing="5">
-                    <StackPanel Orientation="Horizontal">
-                        <FontIcon Glyph="&#xE787;" FontSize="13" Foreground="#4A148C" Margin="0,0,6,0"/>
-                        <TextBlock Text="วันที่ต้องการใช้สนาม" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
-                    </StackPanel>
-                    <DatePicker x:Name="FormDatePicker"
-                                Background="White" Height="40"
-                                HorizontalAlignment="Stretch"
-                                BorderBrush="#E0E0E0" CornerRadius="6"/>
-                </StackPanel>
+                    <!-- วันที่ -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <StackPanel Orientation="Horizontal">
+                                <FontIcon Glyph="&#xE787;" FontSize="14" Foreground="#4A148C" Margin="0,0,6,0"/>
+                                <TextBlock Text="วันที่ใช้สนาม" FontSize="15" FontWeight="SemiBold"/>
+                                <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
+                            </StackPanel>
+                            <Button x:Name="BtnPickDate"
+                                    Click="BtnPickDate_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Background="White" Height="48"
+                                    BorderBrush="#E0E0E0" CornerRadius="10"
+                                    HorizontalContentAlignment="Left"
+                                    Padding="14,0">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE787;" FontSize="15" Foreground="#9CA3AF"/>
+                                    <TextBlock x:Name="TxtDateDisplay"
+                                               Text="เลือกวันที่"
+                                               FontSize="15" Foreground="#9CA3AF"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
 
-                <!-- เวลาเริ่ม + ระยะเวลา -->
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+                    <!-- เวลาเริ่ม + เวลาสิ้นสุด -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Spacing="5">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <StackPanel Orientation="Horizontal">
+                                <FontIcon Glyph="&#xE823;" FontSize="14" Foreground="#4A148C" Margin="0,0,6,0"/>
+                                <TextBlock Text="เวลาเริ่ม" FontSize="15" FontWeight="SemiBold"/>
+                                <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
+                            </StackPanel>
+                            <ComboBox x:Name="FormTimeComboBox"
+                                      Background="White" Height="48"
+                                      HorizontalAlignment="Stretch"
+                                      BorderBrush="#E0E0E0" CornerRadius="6"
+                                      PlaceholderText="เลือกเวลา" FontSize="15"
+                                      SelectionChanged="StartTime_Changed">
+                                <ComboBoxItem Content="06:00" Tag="06:00"/>
+                                <ComboBoxItem Content="07:00" Tag="07:00"/>
+                                <ComboBoxItem Content="08:00" Tag="08:00"/>
+                                <ComboBoxItem Content="09:00" Tag="09:00"/>
+                                <ComboBoxItem Content="10:00" Tag="10:00"/>
+                                <ComboBoxItem Content="11:00" Tag="11:00"/>
+                                <ComboBoxItem Content="12:00" Tag="12:00"/>
+                                <ComboBoxItem Content="13:00" Tag="13:00"/>
+                                <ComboBoxItem Content="14:00" Tag="14:00"/>
+                                <ComboBoxItem Content="15:00" Tag="15:00"/>
+                                <ComboBoxItem Content="16:00" Tag="16:00"/>
+                                <ComboBoxItem Content="17:00" Tag="17:00"/>
+                                <ComboBoxItem Content="18:00" Tag="18:00"/>
+                                <ComboBoxItem Content="19:00" Tag="19:00"/>
+                                <ComboBoxItem Content="20:00" Tag="20:00"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <StackPanel Orientation="Horizontal">
+                                <FontIcon Glyph="&#xE916;" FontSize="14" Foreground="#4A148C" Margin="0,0,6,0"/>
+                                <TextBlock Text="เวลาสิ้นสุด" FontSize="15" FontWeight="SemiBold"/>
+                                <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
+                            </StackPanel>
+                            <ComboBox x:Name="FormEndTimeComboBox"
+                                      Background="White" Height="48"
+                                      HorizontalAlignment="Stretch"
+                                      BorderBrush="#E0E0E0" CornerRadius="6"
+                                      PlaceholderText="เลือกเวลาสิ้นสุด" FontSize="15"
+                                      SelectionChanged="EndTime_Changed"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- End Time Preview -->
+                    <Border x:Name="EndTimePanel" Background="#F3E5F5" CornerRadius="6"
+                            Padding="12,8" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                    HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="#7B1FA2"/>
+                            <TextBlock x:Name="EndTimePreviewText" FontSize="13"
+                                       Foreground="#4A148C" FontWeight="SemiBold"
+                                       Text="--:-- → --:-- (0.0 ชม.)"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Divider -->
+                    <Border Background="#F0F0F0" Height="1" Margin="0,2"/>
+
+                    <!-- ชื่อผู้จอง -->
+                    <StackPanel Spacing="6">
                         <StackPanel Orientation="Horizontal">
-                            <FontIcon Glyph="&#xE823;" FontSize="13" Foreground="#4A148C" Margin="0,0,6,0"/>
-                            <TextBlock Text="เวลาเริ่ม" FontSize="14" FontWeight="SemiBold"/>
+                            <FontIcon Glyph="&#xE77B;" FontSize="14" Foreground="#4A148C" Margin="0,0,6,0"/>
+                            <TextBlock Text="ชื่อผู้จอง" FontSize="15" FontWeight="SemiBold"/>
                             <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
                         </StackPanel>
-                        <ComboBox x:Name="FormTimeComboBox"
-                                  Background="White" Height="40"
-                                  HorizontalAlignment="Stretch"
-                                  BorderBrush="#E0E0E0" CornerRadius="6"
-                                  PlaceholderText="เลือกเวลา" FontSize="14"
-                                  SelectionChanged="TimeOrDuration_Changed">
-                            <ComboBoxItem Content="08:00" Tag="08:00"/>
-                            <ComboBoxItem Content="09:00" Tag="09:00"/>
-                            <ComboBoxItem Content="10:00" Tag="10:00"/>
-                            <ComboBoxItem Content="11:00" Tag="11:00"/>
-                            <ComboBoxItem Content="12:00" Tag="12:00"/>
-                            <ComboBoxItem Content="13:00" Tag="13:00"/>
-                            <ComboBoxItem Content="14:00" Tag="14:00"/>
-                            <ComboBoxItem Content="15:00" Tag="15:00"/>
-                            <ComboBoxItem Content="16:00" Tag="16:00"/>
-                            <ComboBoxItem Content="17:00" Tag="17:00"/>
-                            <ComboBoxItem Content="18:00" Tag="18:00"/>
-                            <ComboBoxItem Content="19:00" Tag="19:00"/>
-                            <ComboBoxItem Content="20:00" Tag="20:00"/>
-                        </ComboBox>
+                        <TextBox x:Name="FormNameTextBox"
+                                 PlaceholderText="กรอกชื่อผู้จอง"
+                                 Background="White" Height="48"
+                                 BorderBrush="#E0E0E0" CornerRadius="6"
+                                 FontSize="15" VerticalContentAlignment="Center"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Spacing="5">
+                    <!-- เบอร์โทร -->
+                    <StackPanel Spacing="6">
                         <StackPanel Orientation="Horizontal">
-                            <FontIcon Glyph="&#xE916;" FontSize="13" Foreground="#4A148C" Margin="0,0,6,0"/>
-                            <TextBlock Text="ระยะเวลา" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
+                            <FontIcon Glyph="&#xE717;" FontSize="14" Foreground="#999" Margin="0,0,6,0"/>
+                            <TextBlock Text="เบอร์โทรศัพท์" FontSize="15" Foreground="#666"/>
                         </StackPanel>
-                        <ComboBox x:Name="FormDurationComboBox"
-                                  Background="White" Height="40"
-                                  HorizontalAlignment="Stretch"
-                                  BorderBrush="#E0E0E0" CornerRadius="6"
-                                  PlaceholderText="เลือก" FontSize="14"
-                                  SelectionChanged="TimeOrDuration_Changed">
-                            <ComboBoxItem Content="1.0 ชม." Tag="1.0"/>
-                            <ComboBoxItem Content="1.5 ชม." Tag="1.5"/>
-                            <ComboBoxItem Content="2.0 ชม." Tag="2.0"/>
-                            <ComboBoxItem Content="2.5 ชม." Tag="2.5"/>
-                            <ComboBoxItem Content="3.0 ชม." Tag="3.0"/>
-                        </ComboBox>
+                        <TextBox x:Name="FormPhoneTextBox"
+                                 PlaceholderText="0812345678"
+                                 Background="White" Height="48"
+                                 BorderBrush="#E0E0E0" CornerRadius="6"
+                                 FontSize="15" MaxLength="10"
+                                 InputScope="TelephoneNumber"
+                                 VerticalContentAlignment="Center"/>
                     </StackPanel>
-                </Grid>
 
-                <!-- End Time Preview -->
-                <Border x:Name="EndTimePanel" Background="#F3E5F5" CornerRadius="6"
-                        Padding="12,8" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal" Spacing="6"
-                                HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="#7B1FA2"/>
-                        <TextBlock FontSize="13" Foreground="#4A148C" FontWeight="SemiBold">
-                            <Run Text="สิ้นสุด: "/>
-                            <Run x:Name="EndTimeText" Text="--:--"/>
-                        </TextBlock>
+                    <!-- Divider -->
+                    <Border Background="#F0F0F0" Height="1" Margin="0,2"/>
+
+                    <!-- ── ปุ่มล่างสุดของ card ชิดขวา ──── -->
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Spacing="12">
+                        <Button Content="ยกเลิก"
+                                Background="White" Foreground="#424242"
+                                BorderBrush="#E0E0E0" BorderThickness="1"
+                                FontSize="15" Height="46"
+                                Padding="28,0" CornerRadius="10"
+                                Click="BtnBack_Click"/>
+                        <Button Click="BtnSubmit_Click"
+                                Background="#4A148C" Foreground="White"
+                                FontSize="15" Height="46"
+                                Padding="28,0" CornerRadius="10"
+                                BorderThickness="0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="White"/>
+                                <TextBlock x:Name="SubmitButtonText" Text="ยืนยันจอง" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                </Border>
 
-                <!-- Divider -->
-                <Border Background="#F0F0F0" Height="1" Margin="0,2"/>
-
-                <!-- ชื่อผู้จอง -->
-                <StackPanel Spacing="5">
-                    <StackPanel Orientation="Horizontal">
-                        <FontIcon Glyph="&#xE77B;" FontSize="13" Foreground="#4A148C" Margin="0,0,6,0"/>
-                        <TextBlock Text="ชื่อผู้จอง" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
-                    </StackPanel>
-                    <TextBox x:Name="FormNameTextBox"
-                             PlaceholderText="กรอกชื่อผู้จอง"
-                             Background="White" Height="40"
-                             BorderBrush="#E0E0E0" CornerRadius="6"
-                             FontSize="14" VerticalContentAlignment="Center"/>
                 </StackPanel>
-
-                <!-- เบอร์โทร -->
-                <StackPanel Spacing="5">
-                    <StackPanel Orientation="Horizontal">
-                        <FontIcon Glyph="&#xE717;" FontSize="13" Foreground="#999" Margin="0,0,6,0"/>
-                        <TextBlock Text="เบอร์โทรศัพท์" FontSize="14" Foreground="#666"/>
-                    </StackPanel>
-                    <TextBox x:Name="FormPhoneTextBox"
-                             PlaceholderText="0812345678"
-                             Background="White" Height="40"
-                             BorderBrush="#E0E0E0" CornerRadius="6"
-                             FontSize="14" MaxLength="10"
-                             InputScope="TelephoneNumber"
-                             VerticalContentAlignment="Center"/>
-                </StackPanel>
-
+            </Border>
+            <!-- Keyboard spacer — expands when keyboard is visible so content scrolls above it -->
+            <Border x:Name="KeyboardSpacer" Height="0" Background="Transparent"/>
             </StackPanel>
-        </Border>
-
-        <!-- ══ Buttons ══════════════════════════════════════ -->
-        <Grid Grid.Row="2" Padding="20,12,20,24" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Content="ยกเลิก"
-                    Background="White" Foreground="#424242"
-                    BorderBrush="#E0E0E0" BorderThickness="1"
-                    FontSize="15" Height="44"
-                    HorizontalAlignment="Stretch" CornerRadius="8"
-                    Click="BtnBack_Click"/>
-            <Button Grid.Column="1" Click="BtnSubmit_Click"
-                    Background="#4A148C" Foreground="White"
-                    FontSize="15" Height="44"
-                    HorizontalAlignment="Stretch" CornerRadius="8">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="White"/>
-                    <TextBlock Text="ยืนยันจอง" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-        </Grid>
+        </ScrollViewer>
     </Grid>
 </Page>

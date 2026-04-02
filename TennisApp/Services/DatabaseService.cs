@@ -29,6 +29,7 @@ public sealed class DatabaseService : IDisposable
 
     public PaidCourtUseLogDao PaidCourtUseLogs { get; private set; } = null!;
     public CourseCourtUseLogDao CourseCourtUseLogs { get; private set; } = null!;
+    public CourseTypeDao CourseTypes { get; private set; } = null!;
 
     public DatabaseService()
     {
@@ -70,6 +71,7 @@ public sealed class DatabaseService : IDisposable
         // สร้าง DAOs อื่น ๆ
         Trainees = new TraineeDao(_connectionString);
         Trainers = new TrainerDao(_connectionString);
+        CourseTypes = new CourseTypeDao(_connectionString);
         Courses = new CourseDao(_connectionString);
         Registrations = new ClassRegisRecordDao(_connectionString);
         
@@ -209,6 +211,8 @@ public sealed class DatabaseService : IDisposable
             "DELETE FROM CourseCourtReservation",
             "DELETE FROM ClassRegisRecord",
             "DELETE FROM Course",
+            "DELETE FROM CoursePackage",
+            "DELETE FROM CourseType",
             "DELETE FROM Trainee",
             "DELETE FROM Trainer",
             "DELETE FROM Court WHERE court_id != '00'"   // เก็บ dummy "00" ไว้

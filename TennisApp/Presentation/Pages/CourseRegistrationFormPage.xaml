@@ -98,37 +98,28 @@
                 </Grid>
 
                 <!-- Search -->
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox x:Name="TxtCourseSearch"
-                             PlaceholderText="ค้นหาคอร์ส..."
-                             Background="White" Height="40"
-                             VerticalContentAlignment="Center"
-                             FontSize="14" CornerRadius="10"
-                             BorderBrush="#E5E7EB" BorderThickness="1"
-                             TextChanged="TxtCourseSearch_TextChanged"/>
-                    <Button Grid.Column="1"
-                            Background="White" BorderBrush="#E5E7EB"
-                            BorderThickness="1" Height="40" Width="40"
-                            CornerRadius="10"
-                            Click="BtnCourseSearch_Click">
-                        <FontIcon Glyph="&#xE721;" FontSize="14" Foreground="#6B7280"/>
-                    </Button>
-                </Grid>
+                <TextBox x:Name="TxtCourseSearch"
+                         PlaceholderText="ค้นหาคอร์ส / รหัส / โค้ช..."
+                         Background="White" Height="40"
+                         VerticalContentAlignment="Center"
+                         FontSize="14" CornerRadius="6"
+                         BorderBrush="#E0E0E0" BorderThickness="1"
+                         TextChanged="TxtCourseSearch_TextChanged"/>
 
-                <Border Background="#F2F4F7" Height="1"/>
-
-                <ScrollViewer HorizontalScrollMode="Auto"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollMode="Disabled"
-                              Padding="0,4">
-                    <StackPanel x:Name="CourseCardsPanel"
-                                Orientation="Horizontal"
-                                Spacing="12"/>
-                </ScrollViewer>
+                <!-- Course List (vertical) -->
+                <ListView x:Name="CourseListView"
+                          MaxHeight="260"
+                          SelectionMode="Single"
+                          SelectionChanged="CourseListView_SelectionChanged">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0,0,0,6"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
 
                 <TextBlock x:Name="TxtNoCourses"
                            Text="ไม่พบคอร์ส"
@@ -136,39 +127,6 @@
                            HorizontalAlignment="Center"
                            Visibility="Collapsed"/>
 
-                <Border x:Name="CourseDetailsPanel"
-                        Background="#EDE7F6" CornerRadius="10"
-                        Padding="16" Visibility="Collapsed">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" Spacing="4"
-                                    VerticalAlignment="Center">
-                            <TextBlock x:Name="TxtSelectedCourseId"
-                                       FontSize="12" Foreground="#6C2BD9"/>
-                            <TextBlock x:Name="TxtCourseName"
-                                       FontSize="16" FontWeight="Bold"
-                                       Foreground="#1A1A2E"/>
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE77B;" FontSize="14" Foreground="#6B7280"/>
-                                <TextBlock x:Name="TxtCourseTrainer"
-                                           FontSize="14" Foreground="#6B7280"/>
-                            </StackPanel>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Spacing="4"
-                                    VerticalAlignment="Center">
-                            <TextBlock x:Name="TxtSessionInfo"
-                                       FontSize="14" Foreground="#6B7280"/>
-                            <TextBlock x:Name="TxtPackagePrice"
-                                       FontSize="20" FontWeight="Bold"
-                                       Foreground="#D32F2F"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
             </StackPanel>
         </Border>
 
@@ -199,19 +157,32 @@
                                    VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <Button x:Name="BtnAddTrainee"
-                            Grid.Column="2"
-                            Background="#6C2BD9" Foreground="White"
-                            FontSize="14" Height="38"
-                            Padding="20,0" CornerRadius="10"
-                            BorderThickness="0"
-                            IsEnabled="False"
-                            Click="BtnAddTrainee_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE710;" FontSize="14"/>
-                            <TextBlock Text="เพิ่มผู้สมัคร" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="BtnNewTrainee"
+                                Background="White" Foreground="#6C2BD9"
+                                BorderBrush="#6C2BD9" BorderThickness="1"
+                                FontSize="14" Height="38"
+                                Padding="16,0" CornerRadius="10"
+                                Click="BtnNewTrainee_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE77B;" FontSize="14"/>
+                                <TextBlock Text="เพิ่มผู้เรียนใหม่" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnAddTrainee"
+                                Background="#6C2BD9" Foreground="White"
+                                FontSize="14" Height="38"
+                                Padding="20,0" CornerRadius="10"
+                                BorderThickness="0"
+                                IsEnabled="False"
+                                Click="BtnAddTrainee_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                                <TextBlock Text="เพิ่มผู้สมัคร" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
 
                 <Border Background="#F2F4F7" Height="1"/>

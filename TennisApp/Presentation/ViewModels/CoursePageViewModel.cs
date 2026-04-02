@@ -69,7 +69,7 @@ public partial class CoursePageViewModel : ObservableObject
             HasNoResults = false;
             System.Diagnostics.Debug.WriteLine("📚 Loading courses...");
 
-            var courses = await _database.Courses.GetAllCoursesAsync().ConfigureAwait(false);
+            var courses = await _database.Courses.GetAllCoursesAsync();
             
             Courses.Clear();
             FilteredCourses.Clear();
@@ -101,7 +101,7 @@ public partial class CoursePageViewModel : ObservableObject
     {
         try
         {
-            var names = await _database.Courses.GetAllTrainerNamesAsync().ConfigureAwait(false);
+            var names = await _database.Courses.GetAllTrainerNamesAsync();
             TrainerNames.Clear();
             TrainerNames.Add("ทั้งหมด");
             foreach (var name in names)
@@ -130,7 +130,7 @@ public partial class CoursePageViewModel : ObservableObject
                 return;
             }
 
-            var results = await _database.Courses.SearchCoursesAsync(SearchKeyword, SelectedFilterField).ConfigureAwait(false);
+            var results = await _database.Courses.SearchCoursesAsync(SearchKeyword, SelectedFilterField);
             
             FilteredCourses.Clear();
             foreach (var course in results)
@@ -157,7 +157,6 @@ public partial class CoursePageViewModel : ObservableObject
 
             if (!hasClassId && !hasTitle && !hasTrainer)
             {
-                // No filter — show all
                 FilteredCourses.Clear();
                 foreach (var course in Courses)
                 {
@@ -170,7 +169,7 @@ public partial class CoursePageViewModel : ObservableObject
                 hasClassId ? SearchClassId : null,
                 hasTitle ? SearchClassTitle : null,
                 hasTrainer ? SelectedTrainerFilter : null
-            ).ConfigureAwait(false);
+            );
 
             FilteredCourses.Clear();
             foreach (var course in results)
@@ -191,7 +190,7 @@ public partial class CoursePageViewModel : ObservableObject
     {
         try
         {
-            var success = await _database.Courses.DeleteCourseAsync(classId).ConfigureAwait(false);
+            var success = await _database.Courses.DeleteCourseAsync(classId);
             
             if (success)
             {
@@ -234,7 +233,7 @@ public partial class CoursePageViewModel : ObservableObject
                 return false;
             }
 
-            var success = await _database.Courses.DeleteCourseAsync(key.ClassId, key.TrainerId).ConfigureAwait(false);
+            var success = await _database.Courses.DeleteCourseAsync(key.ClassId, key.TrainerId);
             
             if (success)
             {

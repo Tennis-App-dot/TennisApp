@@ -22,7 +22,7 @@
       <Color x:Key="SurfaceColor">#FFFFFF</Color>
       <Color x:Key="OnSurfaceColor">#1C1B1F</Color>
       <Color x:Key="SurfaceVariantColor">#F2EFF5</Color>
-      <Color x:Key="OnSurfaceVariantColor">#8B8494</Color>
+      <Color x:Key="OnSurfaceVariantColor">#49454F</Color>
       <Color x:Key="OutlineColor">#79747E</Color>
       <Color x:Key="OnSurfaceInverseColor">#F4EFF4</Color>
       <Color x:Key="SurfaceInverseColor">#313033</Color>

@@ -13,6 +13,7 @@ public sealed partial class TraineeHistoryPage : Page
 {
     private TraineeItem? _trainee;
     private List<ClassRegisRecordItem> _registrations = new();
+    private NotificationService? _notify;
 
     public TraineeHistoryPage()
     {
@@ -22,6 +23,7 @@ public sealed partial class TraineeHistoryPage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        _notify = NotificationService.GetFromPage(this);
 
         if (e.Parameter is string traineeId)
         {
@@ -120,30 +122,20 @@ public sealed partial class TraineeHistoryPage : Page
 
     private async System.Threading.Tasks.Task ShowErrorDialog(string message)
     {
-        var titleTextBlock = new TextBlock
+        if (_notify != null)
         {
-            Text = "ข้อผิดพลาด",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            FontSize = 20,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-        };
-
-        var contentTextBlock = new TextBlock
+            await _notify.ShowCriticalErrorAsync("ข้อผิดพลาด", message, this.XamlRoot!);
+        }
+        else
         {
-            Text = message,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = titleTextBlock,
-            Content = contentTextBlock,
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-
-        await dialog.ShowAsync();
+            var dialog = new ContentDialog
+            {
+                Title = "ข้อผิดพลาด",
+                Content = message,
+                CloseButtonText = "ตกลง",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
     }
 }

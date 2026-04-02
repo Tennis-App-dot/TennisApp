@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Controls;
 
@@ -82,5 +83,19 @@ public static class UIHelper
 
         var result = await dialog.ShowAsync();
         return result == ContentDialogResult.Primary;
+    }
+
+    /// <summary>
+    /// Parse hex color string (e.g., "#4A148C" or "4A148C") to Windows.UI.Color
+    /// </summary>
+    public static Windows.UI.Color ParseColor(string hex)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length == 6)
+            return Windows.UI.Color.FromArgb(255,
+                byte.Parse(hex[..2], NumberStyles.HexNumber),
+                byte.Parse(hex[2..4], NumberStyles.HexNumber),
+                byte.Parse(hex[4..6], NumberStyles.HexNumber));
+        return Windows.UI.Color.FromArgb(255, 158, 158, 158);
     }
 }

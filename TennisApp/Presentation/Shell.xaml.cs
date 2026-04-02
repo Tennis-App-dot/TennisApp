@@ -1,4 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Navigation;
+using TennisApp.Helpers;
 using TennisApp.Presentation.Pages;
 using TennisApp.Services;
 using System.Collections.Generic;
@@ -26,7 +29,19 @@ public sealed partial class Shell : UserControl
     {
         InitializeComponent();
         NotificationService.Initialize(GlobalInfoBar);
+
+        // ✅ Auto-scroll input เหนือ keyboard ทุกหน้า
+        ContentFrame.Navigated += ContentFrame_Navigated;
+
         System.Diagnostics.Debug.WriteLine("Shell constructor - initializing Shell + NotificationService");
+    }
+
+    private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
+    {
+        if (e.Content is Page page)
+        {
+            InputScrollHelper.Attach(page);
+        }
     }
 
     private void NavView_Loaded(object sender, RoutedEventArgs e)
@@ -70,7 +85,10 @@ public sealed partial class Shell : UserControl
             if (PageMappings.TryGetValue(tag, out var pageType))
             {
                 System.Diagnostics.Debug.WriteLine($"Navigating to {pageType.Name}");
-                ContentFrame.Navigate(pageType);
+                ContentFrame.Navigate(pageType, null, new SlideNavigationTransitionInfo
+                {
+                    Effect = SlideNavigationTransitionEffect.FromRight
+                });
                 System.Diagnostics.Debug.WriteLine($"✅ Navigation to {pageType.Name} successful");
             }
             else

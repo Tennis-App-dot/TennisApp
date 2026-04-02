@@ -11,6 +11,29 @@
     Background="#F5F5F5">
 
     <Grid>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="WindowSizeStates">
+                <VisualState x:Name="NarrowState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="HeaderTitle.FontSize" Value="20"/>
+                        <Setter Target="HeaderTitle.Margin" Value="14,12,14,0"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="WideState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="600"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="HeaderTitle.FontSize" Value="24"/>
+                        <Setter Target="HeaderTitle.Margin" Value="24,16,24,0"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -18,7 +41,7 @@
         </Grid.RowDefinitions>
 
         <!-- ══ Row 0: Header ══════════════════════════════════ -->
-        <TextBlock Grid.Row="0" Text="บันทึกการเข้าใช้งาน"
+        <TextBlock x:Name="HeaderTitle" Grid.Row="0" Text="บันทึกการเข้าใช้งาน"
                    FontSize="24" FontWeight="Bold" Foreground="#333"
                    Margin="20,16,20,0"/>
 
@@ -257,14 +280,34 @@
                                     <TextBlock Text="คอร์สเรียน" FontSize="14" FontWeight="SemiBold"/>
                                     <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
                                 </StackPanel>
-                                <ComboBox x:Name="WalkInCourseComboBox"
-                                          HorizontalAlignment="Stretch" Height="40"
-                                          Background="White" BorderBrush="#E0E0E0"
-                                          CornerRadius="6" PlaceholderText="เลือกคอร์ส"
-                                          FontSize="14"/>
+                                <TextBox x:Name="WalkInCourseSearchBox"
+                                         PlaceholderText="ค้นหาคอร์ส / รหัส / โค้ช..."
+                                         Background="White" Height="36"
+                                         BorderBrush="#E0E0E0" CornerRadius="6"
+                                         FontSize="13" VerticalContentAlignment="Center"
+                                         TextChanged="WalkInCourseSearchBox_TextChanged"/>
+                                <ListView x:Name="WalkInCourseListView"
+                                          MaxHeight="140"
+                                          SelectionMode="Single"
+                                          SelectionChanged="WalkInCourseListView_SelectionChanged">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0,0,0,4"/>
+                                            <Setter Property="MinHeight" Value="0"/>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                </ListView>
+                                <Border x:Name="WalkInSelectedCoursePreview" Visibility="Collapsed"
+                                        Background="#F3E5F5" CornerRadius="6" Padding="10,6">
+                                    <TextBlock x:Name="WalkInSelectedCourseText" FontSize="12"
+                                               Foreground="#4A148C" FontWeight="SemiBold"
+                                               TextWrapping="Wrap"/>
+                                </Border>
                             </StackPanel>
 
-                            <!-- Row 2: เวลา + ระยะเวลา -->
+                            <!-- Row 2: เวลา + เวลาสิ้นสุด -->
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -282,7 +325,9 @@
                                               Background="White" BorderBrush="#E0E0E0"
                                               CornerRadius="6" PlaceholderText="เลือกเวลา"
                                               FontSize="14"
-                                              SelectionChanged="WalkInTimeOrDuration_Changed">
+                                              SelectionChanged="WalkInStartTime_Changed">
+                                        <ComboBoxItem Content="06:00" Tag="06:00"/>
+                                        <ComboBoxItem Content="07:00" Tag="07:00"/>
                                         <ComboBoxItem Content="08:00" Tag="08:00"/>
                                         <ComboBoxItem Content="09:00" Tag="09:00"/>
                                         <ComboBoxItem Content="10:00" Tag="10:00"/>
@@ -302,21 +347,15 @@
                                 <StackPanel Grid.Column="1" Spacing="5">
                                     <StackPanel Orientation="Horizontal">
                                         <FontIcon Glyph="&#xE916;" FontSize="13" Foreground="#4A148C" Margin="0,0,6,0"/>
-                                        <TextBlock Text="ระยะเวลา" FontSize="14" FontWeight="SemiBold"/>
+                                        <TextBlock Text="เวลาสิ้นสุด" FontSize="14" FontWeight="SemiBold"/>
                                         <TextBlock Text=" *" Foreground="#C62828" FontWeight="Bold"/>
                                     </StackPanel>
-                                    <ComboBox x:Name="WalkInDurationComboBox"
+                                    <ComboBox x:Name="WalkInEndTimeComboBox"
                                               HorizontalAlignment="Stretch" Height="40"
                                               Background="White" BorderBrush="#E0E0E0"
-                                              CornerRadius="6" PlaceholderText="เลือก"
+                                              CornerRadius="6" PlaceholderText="เลือกเวลาสิ้นสุด"
                                               FontSize="14"
-                                              SelectionChanged="WalkInTimeOrDuration_Changed">
-                                        <ComboBoxItem Content="1.0 ชม." Tag="1.0"/>
-                                        <ComboBoxItem Content="1.5 ชม." Tag="1.5"/>
-                                        <ComboBoxItem Content="2.0 ชม." Tag="2.0"/>
-                                        <ComboBoxItem Content="2.5 ชม." Tag="2.5"/>
-                                        <ComboBoxItem Content="3.0 ชม." Tag="3.0"/>
-                                    </ComboBox>
+                                              SelectionChanged="WalkInEndTime_Changed"/>
                                 </StackPanel>
                             </Grid>
 
@@ -326,10 +365,9 @@
                                 <StackPanel Orientation="Horizontal" Spacing="6"
                                             HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="#7B1FA2"/>
-                                    <TextBlock FontSize="13" Foreground="#4A148C" FontWeight="SemiBold">
-                                        <Run Text="สิ้นสุด: "/>
-                                        <Run x:Name="WalkInEndTimeText" Text="--:--"/>
-                                    </TextBlock>
+                                    <TextBlock x:Name="WalkInEndTimePreviewText" FontSize="13"
+                                               Foreground="#4A148C" FontWeight="SemiBold"
+                                               Text="--:-- → --:-- (0.0 ชม.)"/>
                                 </StackPanel>
                             </Border>
 
@@ -366,31 +404,32 @@
                             </StackPanel>
 
                             <!-- Buttons -->
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Click="BtnClearWalkIn_Click"
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Spacing="12">
+                                <Button Click="BtnClearWalkIn_Click"
                                         Background="White" Foreground="#424242"
                                         BorderBrush="#E0E0E0" BorderThickness="1"
-                                        HorizontalAlignment="Stretch" Height="44"
+                                        Height="44" Padding="28,0"
                                         CornerRadius="8" FontSize="14"
                                         Content="ยกเลิก"/>
-                                <Button Grid.Column="1" Click="BtnCheckinWalkIn_Click"
+                                <Button Click="BtnCheckinWalkIn_Click"
                                         Background="#4A148C" Foreground="White"
-                                        HorizontalAlignment="Stretch" Height="44"
-                                        CornerRadius="8" FontSize="14">
+                                        Height="44" Padding="28,0"
+                                        CornerRadius="8" FontSize="14"
+                                        BorderThickness="0">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="White"/>
                                         <TextBlock Text="เช็คอิน" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                            </Grid>
+                            </StackPanel>
 
                         </StackPanel>
                     </Border>
 
+                    <!-- Keyboard spacer -->
+                    <Border x:Name="KeyboardSpacer" Height="0" Background="Transparent"/>
                 </StackPanel>
             </ScrollViewer>
 

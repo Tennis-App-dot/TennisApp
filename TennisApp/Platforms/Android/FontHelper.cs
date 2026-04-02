@@ -9,29 +9,49 @@ namespace TennisApp.Platforms.Android;
 /// </summary>
 public static class FontHelper
 {
+    private static readonly string[] FontAssetPaths = new[]
+    {
+        "Assets/Fonts",
+        "Fonts",
+    };
+
     /// <summary>
     /// Validate all Thai fonts are available on Android
     /// </summary>
     public static void TestFonts(Context context)
     {
         System.Diagnostics.Debug.WriteLine("Validating Thai fonts on Android...");
-        
-        try
-        {
-            // Test loading each font file
-            var regular = Typeface.CreateFromAsset(context.Assets, "Fonts/NotoSansThai-Regular.ttf");
-            var bold = Typeface.CreateFromAsset(context.Assets, "Fonts/NotoSansThai-Bold.ttf");
-            var light = Typeface.CreateFromAsset(context.Assets, "Fonts/NotoSansThai-Light.ttf");
 
-            System.Diagnostics.Debug.WriteLine($"Font validation results:");
-            System.Diagnostics.Debug.WriteLine($"   Regular: {(regular != null ? "Available" : "Missing")}");
-            System.Diagnostics.Debug.WriteLine($"   Bold: {(bold != null ? "Available" : "Missing")}");
-            System.Diagnostics.Debug.WriteLine($"   Light: {(light != null ? "Available" : "Missing")}");
-            System.Diagnostics.Debug.WriteLine("All Thai fonts validated successfully");
-        }
-        catch (Exception ex)
+        var fontFiles = new[] { "NotoSansThai-Regular.ttf", "NotoSansThai-Bold.ttf", "NotoSansThai-Light.ttf" };
+
+        foreach (var fontFile in fontFiles)
         {
-            System.Diagnostics.Debug.WriteLine($"Font validation failed: {ex.Message}");
+            bool found = false;
+            foreach (var basePath in FontAssetPaths)
+            {
+                try
+                {
+                    var assetPath = $"{basePath}/{fontFile}";
+                    var typeface = Typeface.CreateFromAsset(context.Assets, assetPath);
+                    if (typeface != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"   ✅ {fontFile}: Available (path: {assetPath})");
+                        found = true;
+                        break;
+                    }
+                }
+                catch
+                {
+                    // Try next path
+                }
+            }
+
+            if (!found)
+            {
+                System.Diagnostics.Debug.WriteLine($"   ⚠️ {fontFile}: Not found in any asset path");
+            }
         }
+
+        System.Diagnostics.Debug.WriteLine("Font validation complete");
     }
 }

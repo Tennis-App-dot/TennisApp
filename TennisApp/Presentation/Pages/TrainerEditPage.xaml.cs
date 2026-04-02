@@ -4,7 +4,9 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 using TennisApp.Models;
 using TennisApp.Services;
+using TennisApp.Presentation.Dialogs;
 using System.Text.RegularExpressions;
+using TennisApp.Helpers;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
@@ -19,13 +21,19 @@ public sealed partial class TrainerEditPage : Page
     private string? _trainerId;
     private byte[]? _selectedImageData;
     private NotificationService? _notify;
+    private DateTime? _selectedBirthDate;
 
     public TrainerEditPage()
     {
         InitializeComponent();
         _databaseService = ((App)Application.Current).DatabaseService;
         _databaseService.EnsureInitialized();
-        this.Loaded += (s, e) => _notify = NotificationService.GetFromPage(this);
+        this.Loaded += (s, e) =>
+        {
+            _notify = NotificationService.GetFromPage(this);
+            InputScrollHelper.Attach(this);
+        };
+        this.Unloaded += (s, e) => InputScrollHelper.Detach(this);
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -58,7 +66,11 @@ public sealed partial class TrainerEditPage : Page
                 TxtNickname.Text = _currentTrainer.Nickname ?? string.Empty;
 
                 if (_currentTrainer.BirthDate.HasValue)
-                    DateBirthDate.Date = new DateTimeOffset(_currentTrainer.BirthDate.Value);
+                {
+                    _selectedBirthDate = _currentTrainer.BirthDate.Value;
+                    TxtBirthDateDisplay.Text = _currentTrainer.BirthDate.Value.ToString("dd/MM/yyyy");
+                    TxtBirthDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+                }
 
                 // โหลดรูปภาพ
                 if (_currentTrainer.ImageData != null && _currentTrainer.ImageData.Length > 0)
@@ -83,6 +95,17 @@ public sealed partial class TrainerEditPage : Page
         catch (Exception ex)
         {
             _notify?.ShowError($"เกิดข้อผิดพลาดในการโหลดข้อมูล: {ex.Message}");
+        }
+    }
+
+    private async void BtnPickBirthDate_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await DatePickerDialog.ShowAsync(this.XamlRoot!, _selectedBirthDate, allowPastDates: true);
+        if (result.HasValue)
+        {
+            _selectedBirthDate = result.Value;
+            TxtBirthDateDisplay.Text = result.Value.ToString("dd/MM/yyyy");
+            TxtBirthDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
         }
     }
 
@@ -121,13 +144,11 @@ public sealed partial class TrainerEditPage : Page
             var originalText = textBox.Text;
             var selectionStart = textBox.SelectionStart;
 
-            // ลบตัวอักษรที่ไม่ใช่ตัวเลข (เก็บเฉพาะ 0-9)
             var numericText = Regex.Replace(originalText, @"[^\d]", "");
 
             if (originalText != numericText)
             {
                 textBox.Text = numericText;
-                // คืนตำแหน่ง cursor
                 textBox.SelectionStart = Math.Min(selectionStart, numericText.Length);
             }
         }
@@ -153,7 +174,6 @@ public sealed partial class TrainerEditPage : Page
             return;
         }
 
-        // Validate required fields
         if (string.IsNullOrWhiteSpace(TxtFirstName.Text))
         {
             _notify?.ShowWarning("กรุณากรอกชื่อ");
@@ -168,46 +188,30 @@ public sealed partial class TrainerEditPage : Page
 
         try
         {
-            // Get birth date if selected
-            DateTime? birthDate = null;
-            if (DateBirthDate.Date.Year > 1900)
-            {
-                birthDate = DateBirthDate.Date.DateTime;
-            }
-            
-            // Update trainer data
             _currentTrainer.FirstName = TxtFirstName.Text.Trim();
             _currentTrainer.LastName = TxtLastName.Text.Trim();
             _currentTrainer.Nickname = string.IsNullOrWhiteSpace(TxtNickname.Text) ? string.Empty : TxtNickname.Text.Trim();
             _currentTrainer.Phone = string.IsNullOrWhiteSpace(TxtPhone.Text) ? string.Empty : TxtPhone.Text.Trim();
-            _currentTrainer.BirthDate = birthDate;
-            _currentTrainer.ImageData = _selectedImageData; // อัปเดตรูปภาพ
+            _currentTrainer.BirthDate = _selectedBirthDate;
+            _currentTrainer.ImageData = _selectedImageData;
 
             System.Diagnostics.Debug.WriteLine($"Updating trainer: {_currentTrainer.FullName} (ID: {_currentTrainer.TrainerId})");
-            System.Diagnostics.Debug.WriteLine($"Image data: {_selectedImageData?.Length ?? 0} bytes");
 
-            // Save to database
             var success = await _databaseService.Trainers.UpdateTrainerAsync(_currentTrainer);
 
             if (success)
             {
                 System.Diagnostics.Debug.WriteLine("✅ Trainer updated successfully");
                 _notify?.ShowSuccess("บันทึกข้อมูลผู้ฝึกสอนเรียบร้อยแล้ว");
-                
-                if (Frame.CanGoBack)
-                {
-                    Frame.GoBack();
-                }
+                if (Frame.CanGoBack) Frame.GoBack();
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("❌ Failed to update trainer");
                 _notify?.ShowError("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error updating trainer: {ex.Message}");
             _notify?.ShowError($"เกิดข้อผิดพลาด: {ex.Message}");
         }
     }

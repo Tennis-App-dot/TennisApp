@@ -71,6 +71,11 @@ public sealed partial class CoursePage : Page
         }
     }
 
+    private void BtnManageCourseTypes_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(CourseTypeManagementPage));
+    }
+
     private async System.Threading.Tasks.Task ShowDeleteConfirmationAndDelete(CourseKey key)
     {
         if (_notify == null) return;

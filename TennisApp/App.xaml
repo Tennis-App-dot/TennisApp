@@ -4,16 +4,56 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:utum="using:Uno.Toolkit.UI.Material"
-    xmlns:converters="using:TennisApp.Converters">
+    xmlns:converters="using:TennisApp.Converters"
+    RequestedTheme="Light">
 
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+
+                <!-- ═══════════════════════════════════════════ -->
+                <!-- 1. Platform + Material Theme               -->
+                <!-- ═══════════════════════════════════════════ -->
                 <controls:XamlControlsResources />
                 <utum:MaterialToolkitTheme ColorOverrideSource="ms-appx:///Styles/ColorPaletteOverride.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            
-            <!-- Converters -->
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- 2. TextBox / TextControl Brush Overrides       -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <SolidColorBrush x:Key="TextControlForeground" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#9CA3AF"/>
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#9CA3AF"/>
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#9CA3AF"/>
+            <SolidColorBrush x:Key="TextControlBackground" Color="White"/>
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="White"/>
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#FAFAFA"/>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- 3. ComboBox Brush Overrides                    -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <SolidColorBrush x:Key="ComboBoxForeground" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="ComboBoxForegroundPointerOver" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="ComboBoxBackground" Color="White"/>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#FAFAFA"/>
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="White"/>
+            <SolidColorBrush x:Key="ComboBoxItemForeground" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="ComboBoxPlaceholderForeground" Color="#9CA3AF"/>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- 4. ContentDialog + System Brush Overrides      -->
+            <!-- ═══════════════════════════════════════════════ -->
+            <SolidColorBrush x:Key="ContentDialogBackground" Color="White"/>
+            <SolidColorBrush x:Key="ContentDialogForeground" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="#1C1B1F"/>
+            <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#666666"/>
+
+            <!-- ═══════════════════════════════════════════════ -->
+            <!-- 5. Global Value Converters                     -->
+            <!-- ═══════════════════════════════════════════════ -->
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>

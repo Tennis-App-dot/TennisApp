@@ -247,7 +247,7 @@ public class CourseCourtReservationDao
             r.c_reserve_id, r.court_id, r.class_id, r.c_request_date,
             r.c_reserve_date, r.c_reserve_time, r.c_reserve_name, r.c_reserve_phone,
             co.class_title, co.class_duration, r.c_status, r.trainer_id,
-            r.c_actual_start, r.c_actual_end
+            r.c_actual_start, r.c_actual_end, r.c_reserve_duration
         FROM CourseCourtReservation r
         INNER JOIN Course co ON r.class_id = co.class_id AND r.trainer_id = co.trainer_id";
 
@@ -647,7 +647,7 @@ public class CourseCourtReservationDao
         var timeStr = reader.GetString(5); // c_reserve_time
         TimeSpan reserveTime = TimeSpan.Parse(timeStr);
 
-        return new CourseCourtReservationItem
+        var item = new CourseCourtReservationItem
         {
             ReserveId = reader.GetString(0),        // c_reserve_id
             CourtId = reader.GetString(1),          // court_id
@@ -664,5 +664,13 @@ public class CourseCourtReservationDao
             ActualStart = reader.IsDBNull(12) ? null : DateTime.Parse(reader.GetString(12)),
             ActualEnd = reader.IsDBNull(13) ? null : DateTime.Parse(reader.GetString(13))
         };
+
+        // Map c_reserve_duration (double) — ใช้ค่าจริงจาก DB
+        if (!reader.IsDBNull(14))
+        {
+            item.Duration = reader.GetDouble(14);
+        }
+
+        return item;
     }
 }

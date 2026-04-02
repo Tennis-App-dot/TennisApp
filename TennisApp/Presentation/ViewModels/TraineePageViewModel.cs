@@ -19,9 +19,6 @@ public partial class TraineePageViewModel : ObservableObject
     private string _searchKeyword = string.Empty;
     
     [ObservableProperty]
-    private string _selectedSearchField = "All";
-    
-    [ObservableProperty]
     private bool _isLoading;
     
     [ObservableProperty]
@@ -37,14 +34,6 @@ public partial class TraineePageViewModel : ObservableObject
     private const int PageSize = 50;
     
     public ObservableCollection<TraineeItem> Trainees { get; } = new();
-    
-    public ObservableCollection<string> SearchFields { get; } = new()
-    {
-        "ทั้งหมด",
-        "รหัสประจำตัวผู้เรียน",
-        "ชื่อ",
-        "เบอร์โทรศัพท์"
-    };
 
     public TraineePageViewModel()
     {
@@ -74,10 +63,10 @@ public partial class TraineePageViewModel : ObservableObject
 
             var result = await _databaseService.Trainees.SearchAsync(
                 SearchKeyword,
-                SelectedSearchField,
+                "All",
                 _currentPage,
                 PageSize
-            ).ConfigureAwait(false);
+            );
 
             foreach (var trainee in result.Items)
             {
@@ -121,10 +110,10 @@ public partial class TraineePageViewModel : ObservableObject
 
             var result = await _databaseService.Trainees.SearchAsync(
                 SearchKeyword,
-                SelectedSearchField,
+                "All",
                 _currentPage,
                 PageSize
-            ).ConfigureAwait(false);
+            );
 
             foreach (var trainee in result.Items)
             {
@@ -183,7 +172,7 @@ public partial class TraineePageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"🗑️ Deleting trainee {traineeId}...");
             
-            var success = await _databaseService.Trainees.DeleteTraineeAsync(traineeId).ConfigureAwait(false);
+            var success = await _databaseService.Trainees.DeleteTraineeAsync(traineeId);
             
             if (success)
             {

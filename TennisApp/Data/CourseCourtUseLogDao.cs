@@ -315,4 +315,27 @@ public class CourseCourtUseLogDao
             ClassTitle = reader.GetString(reader.GetOrdinal("class_title"))
         };
     }
+
+    /// <summary>
+    /// หา max log_id ที่ขึ้นต้นด้วย prefix (สำหรับ ID generation)
+    /// </summary>
+    public async Task<string?> GetMaxLogIdByPrefixAsync(string prefix)
+    {
+        const string sql = "SELECT MAX(c_log_id) FROM CourseCourtUseLog WHERE c_log_id LIKE @prefix || '%'";
+        try
+        {
+            await using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@prefix", prefix);
+            var result = await command.ExecuteScalarAsync();
+            return result == DBNull.Value ? null : result?.ToString();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"❌ CourseCourtUseLogDao.GetMaxLogIdByPrefixAsync error: {ex.Message}");
+            return null;
+        }
+    }
 }

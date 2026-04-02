@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using TennisApp.Models;
 using TennisApp.Presentation.ViewModels;
 using TennisApp.Services;
+using TennisApp.Helpers;
 
 namespace TennisApp.Presentation.Pages;
 
@@ -125,16 +126,7 @@ public sealed partial class CourseBookingPage : Page
         }
     }
 
-    private static Windows.UI.Color ParseColor(string hex)
-    {
-        hex = hex.TrimStart('#');
-        if (hex.Length == 6)
-            return Windows.UI.Color.FromArgb(255,
-                byte.Parse(hex[..2], NumberStyles.HexNumber),
-                byte.Parse(hex[2..4], NumberStyles.HexNumber),
-                byte.Parse(hex[4..6], NumberStyles.HexNumber));
-        return Windows.UI.Color.FromArgb(255, 158, 158, 158);
-    }
+    private static Windows.UI.Color ParseColor(string hex) => UIHelper.ParseColor(hex);
 
     // ========================================================================
     // Search
@@ -203,12 +195,40 @@ public sealed partial class CourseBookingPage : Page
     }
 
     // ========================================================================
+    // Pull-to-Refresh
+    // ========================================================================
+
+    private async void CourseRefreshContainer_RefreshRequested(RefreshContainer sender, RefreshRequestedEventArgs args)
+    {
+        var deferral = args.GetDeferral();
+        try
+        {
+            await VM.LoadReservationsAsync();
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            _notify?.ShowError($"รีเฟรชล้มเหลว: {ex.Message}");
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    // ========================================================================
     // Edit
     // ========================================================================
 
     private void BtnEditCourse_Click(object sender, RoutedEventArgs e)
     {
-        _notify?.ShowInfo("ฟังก์ชันแก้ไขจะเพิ่มในเวอร์ชันถัดไป");
+        if ((sender as Button)?.Tag is not CourseCourtReservationItem item) return;
+        if (item.Status != "booked")
+        {
+            _notify?.ShowWarning("สามารถแก้ไขได้เฉพาะสถานะ 'จองแล้ว' เท่านั้น");
+            return;
+        }
+        Frame.Navigate(typeof(CourseBookingFormPage), item);
     }
 
     // ========================================================================
@@ -218,6 +238,18 @@ public sealed partial class CourseBookingPage : Page
     private async void BtnDeleteCourse_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not CourseCourtReservationItem item) return;
+
+        // ✅ ป้องกันลบจองที่กำลังใช้งานหรือเสร็จสิ้นแล้ว
+        if (item.Status == "in_use")
+        {
+            _notify?.ShowWarning("ไม่สามารถลบได้ เนื่องจากกำลังใช้งานอยู่\nกรุณาสิ้นสุดการใช้งานก่อน");
+            return;
+        }
+        if (item.Status == "completed")
+        {
+            _notify?.ShowWarning("ไม่สามารถลบได้ เนื่องจากใช้งานเสร็จสิ้นแล้ว");
+            return;
+        }
 
         var confirmed = _notify != null
             ? await _notify.ShowDeleteConfirmAsync($"การจอง {item.ReserveId} ({item.ReserveName})", this.XamlRoot!)

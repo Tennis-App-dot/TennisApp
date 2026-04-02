@@ -20,7 +20,7 @@ public sealed partial class CourtFormDialog : ContentDialog
     {
         System.Diagnostics.Debug.WriteLine("CourtFormDialog constructor - เริ่มสร้าง dialog");
         
-        InitializeComponent(); // ← Fonts loaded from App.xaml automatically
+        InitializeComponent();
         DataContext = seed;
 
         // เช็คว่าเป็นโหมดแก้ไข (มี CourtID แล้ว) หรือโหมดเพิ่ม (ยังไม่มี CourtID)
@@ -43,6 +43,7 @@ public sealed partial class CourtFormDialog : ContentDialog
             SetLastModifiedVisibility();
             UpdateImagePlaceholder();
             ForceDialogWidth();
+            UpdateMaintenanceDateDisplay();
         };
     }
 
@@ -126,6 +127,8 @@ public sealed partial class CourtFormDialog : ContentDialog
         try
         {
             var result = await Services.ImagePickerService.PickAndCropRectangleAsync(this.XamlRoot!);
+
+            if (result is null) return;
 
             if (result.IsSuccess && result.ImageData != null && Result != null)
             {
@@ -244,5 +247,29 @@ public sealed partial class CourtFormDialog : ContentDialog
         
         // Close dialog without saving
         Hide();
+    }
+
+    private void UpdateMaintenanceDateDisplay()
+    {
+        if (Result is not null && Result.MaintenanceDate != default && Result.MaintenanceDate != DateTime.MinValue)
+        {
+            TxtMaintenanceDateDisplay.Text = Result.MaintenanceDate.ToString("dd/MM/yyyy");
+            TxtMaintenanceDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+        }
+    }
+
+    private async void BtnPickMaintenanceDate_Click(object sender, RoutedEventArgs e)
+    {
+        DateTime? currentDate = (Result is not null && Result.MaintenanceDate != default && Result.MaintenanceDate != DateTime.MinValue)
+            ? Result.MaintenanceDate
+            : null;
+
+        var result = await DatePickerDialog.ShowAsync(this.XamlRoot!, currentDate, allowPastDates: true);
+        if (result.HasValue && Result != null)
+        {
+            Result.MaintenanceDate = result.Value;
+            TxtMaintenanceDateDisplay.Text = result.Value.ToString("dd/MM/yyyy");
+            TxtMaintenanceDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+        }
     }
 }

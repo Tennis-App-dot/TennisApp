@@ -66,17 +66,25 @@ public static class ReservationIdGenerator
         // Format: YYYYMMDD
         string datePrefix = requestDate.ToString("yyyyMMdd");
 
-        // Get all existing reservations for this date
-        var existingReservations = await dbService.PaidCourtReservations
+        // ✅ ตรวจสอบทั้ง Paid และ Course เพื่อป้องกัน ID ชนกัน
+        var existingPaid = await dbService.PaidCourtReservations
+            .GetReservationsByRequestDateAsync(requestDate);
+        var existingCourse = await dbService.CourseCourtReservations
             .GetReservationsByRequestDateAsync(requestDate);
 
-        // Find the highest sequence number for this date
+        // รวม sequence จากทั้ง 2 ตารางแล้วหา max
         int maxSequence = 0;
-        if (existingReservations.Any())
+        if (existingPaid.Any())
         {
-            maxSequence = existingReservations
+            maxSequence = Math.Max(maxSequence, existingPaid
                 .Select(r => ExtractSequenceNumber(r.ReserveId))
-                .Max();
+                .Max());
+        }
+        if (existingCourse.Any())
+        {
+            maxSequence = Math.Max(maxSequence, existingCourse
+                .Select(r => ExtractSequenceNumber(r.ReserveId))
+                .Max());
         }
 
         // Generate new sequence number (max + 1)
@@ -108,17 +116,25 @@ public static class ReservationIdGenerator
         // Format: YYYYMMDD
         string datePrefix = requestDate.ToString("yyyyMMdd");
 
-        // Get all existing course reservations for this date
-        var existingReservations = await dbService.CourseCourtReservations
+        // ✅ ตรวจสอบทั้ง Paid และ Course เพื่อป้องกัน ID ชนกัน
+        var existingPaid = await dbService.PaidCourtReservations
+            .GetReservationsByRequestDateAsync(requestDate);
+        var existingCourse = await dbService.CourseCourtReservations
             .GetReservationsByRequestDateAsync(requestDate);
 
-        // Find the highest sequence number for this date
+        // รวม sequence จากทั้ง 2 ตารางแล้วหา max
         int maxSequence = 0;
-        if (existingReservations.Any())
+        if (existingPaid.Any())
         {
-            maxSequence = existingReservations
+            maxSequence = Math.Max(maxSequence, existingPaid
                 .Select(r => ExtractSequenceNumber(r.ReserveId))
-                .Max();
+                .Max());
+        }
+        if (existingCourse.Any())
+        {
+            maxSequence = Math.Max(maxSequence, existingCourse
+                .Select(r => ExtractSequenceNumber(r.ReserveId))
+                .Max());
         }
 
         // Generate new sequence number (max + 1)
@@ -147,21 +163,10 @@ public static class ReservationIdGenerator
     /// <returns>New log ID (10 digits)</returns>
     public static async Task<string> GeneratePaidUseLogIdAsync(DatabaseService dbService, DateTime useDate)
     {
-        // Format: YYYYMMDD
         string datePrefix = useDate.ToString("yyyyMMdd");
 
-        // Get all existing paid use logs to find max sequence for this date
-        var existingLogs = await dbService.PaidCourtUseLogs.GetAllAsync();
-        int maxSequence = 0;
-        foreach (var log in existingLogs)
-        {
-            if (log.LogId.StartsWith(datePrefix))
-            {
-                var seq = ExtractSequenceNumber(log.LogId);
-                if (seq > maxSequence)
-                    maxSequence = seq;
-            }
-        }
+        var maxId = await dbService.PaidCourtUseLogs.GetMaxLogIdByPrefixAsync(datePrefix);
+        int maxSequence = maxId != null ? ExtractSequenceNumber(maxId) : 0;
 
         int newSequence = maxSequence + 1;
 
@@ -183,21 +188,10 @@ public static class ReservationIdGenerator
     /// <returns>New log ID (10 digits)</returns>
     public static async Task<string> GenerateCourseUseLogIdAsync(DatabaseService dbService, DateTime useDate)
     {
-        // Format: YYYYMMDD
         string datePrefix = useDate.ToString("yyyyMMdd");
 
-        // Get all existing course use logs to find max sequence for this date
-        var existingLogs = await dbService.CourseCourtUseLogs.GetAllAsync();
-        int maxSequence = 0;
-        foreach (var log in existingLogs)
-        {
-            if (log.LogId.StartsWith(datePrefix))
-            {
-                var seq = ExtractSequenceNumber(log.LogId);
-                if (seq > maxSequence)
-                    maxSequence = seq;
-            }
-        }
+        var maxId = await dbService.CourseCourtUseLogs.GetMaxLogIdByPrefixAsync(datePrefix);
+        int maxSequence = maxId != null ? ExtractSequenceNumber(maxId) : 0;
 
         int newSequence = maxSequence + 1;
 

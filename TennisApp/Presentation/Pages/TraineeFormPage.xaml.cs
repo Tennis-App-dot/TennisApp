@@ -3,7 +3,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using TennisApp.Models;
 using TennisApp.Services;
+using TennisApp.Presentation.Dialogs;
 using System.Text.RegularExpressions;
+using TennisApp.Helpers;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
@@ -16,13 +18,19 @@ public sealed partial class TraineeFormPage : Page
     private readonly DatabaseService _databaseService;
     private byte[]? _selectedImageData;
     private NotificationService? _notify;
+    private DateTime? _selectedBirthDate;
 
     public TraineeFormPage()
     {
         InitializeComponent();
         _databaseService = ((App)Application.Current).DatabaseService;
         _databaseService.EnsureInitialized();
-        this.Loaded += (s, e) => _notify = NotificationService.GetFromPage(this);
+        this.Loaded += (s, e) =>
+        {
+            _notify = NotificationService.GetFromPage(this);
+            InputScrollHelper.Attach(this);
+        };
+        this.Unloaded += (s, e) => InputScrollHelper.Detach(this);
     }
 
     private async void BtnUploadPhoto_Click(object sender, RoutedEventArgs e)
@@ -80,6 +88,17 @@ public sealed partial class TraineeFormPage : Page
         }
     }
 
+    private async void BtnPickBirthDate_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await DatePickerDialog.ShowAsync(this.XamlRoot!, _selectedBirthDate, allowPastDates: true);
+        if (result.HasValue)
+        {
+            _selectedBirthDate = result.Value;
+            TxtBirthDateDisplay.Text = result.Value.ToString("dd/MM/yyyy");
+            TxtBirthDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+        }
+    }
+
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(TxtFirstName.Text))
@@ -98,10 +117,6 @@ public sealed partial class TraineeFormPage : Page
         {
             var nextId = await _databaseService.Trainees.GetNextTraineeIdAsync();
 
-            DateTime? birthDate = null;
-            if (DateBirthDate.Date.Year > 1900)
-                birthDate = DateBirthDate.Date.DateTime;
-
             var newTrainee = new TraineeItem
             {
                 TraineeId = nextId,
@@ -109,7 +124,7 @@ public sealed partial class TraineeFormPage : Page
                 LastName = TxtLastName.Text.Trim(),
                 Nickname = string.IsNullOrWhiteSpace(TxtNickname.Text) ? string.Empty : TxtNickname.Text.Trim(),
                 Phone = string.IsNullOrWhiteSpace(TxtPhone.Text) ? string.Empty : TxtPhone.Text.Trim(),
-                BirthDate = birthDate,
+                BirthDate = _selectedBirthDate,
                 ImageData = _selectedImageData
             };
 

@@ -52,6 +52,20 @@ public class CourtItem : INotifyPropertyChanged
         }
     }
 
+    /// <summary>DateTimeOffset? สำหรับ CalendarDatePicker (requires nullable DateTimeOffset)</summary>
+    public DateTimeOffset? MaintenanceDateForCalendarPicker
+    {
+        get => _maintenanceDate == default ? null : new DateTimeOffset(_maintenanceDate);
+        set
+        {
+            var newDate = value?.Date ?? default;
+            if (_maintenanceDate.Date != newDate)
+            {
+                MaintenanceDate = newDate;
+            }
+        }
+    }
+
     /// <summary>แสดงในหน้า List: "วันที่ปรับปรุงล่าสุด: 10/06/2025"</summary>
     public string MaintenanceDateText => 
         _maintenanceDate == default 

@@ -23,6 +23,7 @@ public class CourtStatusItem : INotifyPropertyChanged
     private string _logId = string.Empty;
     private string _reserveId = string.Empty;
     private string _logStatus = string.Empty;
+    private DateTime? _actualStartTime;
 
     // ========================================================================
     // Core Properties
@@ -118,6 +119,16 @@ public class CourtStatusItem : INotifyPropertyChanged
         set { _logStatus = value; OnPropertyChanged(); }
     }
 
+    /// <summary>
+    /// เวลาเช็คอินจริง (ActualStart จาก Reservation)
+    /// ถ้าไม่มี จะ fallback เป็น StartTime (ReserveTime)
+    /// </summary>
+    public DateTime? ActualStartTime
+    {
+        get => _actualStartTime;
+        set { _actualStartTime = value; OnPropertyChanged(); OnPropertyChanged(nameof(ActualStartTimeDisplay)); }
+    }
+
     // ========================================================================
     // Display Properties
     // ========================================================================
@@ -131,6 +142,8 @@ public class CourtStatusItem : INotifyPropertyChanged
     public string EndTimeDisplay => EndTime.ToString(@"hh\:mm");
 
     public string PriceDisplay => $"{Price:N0}";
+
+    public string ActualStartTimeDisplay => ActualStartTime?.ToString("HH:mm") ?? StartTimeDisplay;
 
     public string UsageTypeDisplay => UsageType switch
     {

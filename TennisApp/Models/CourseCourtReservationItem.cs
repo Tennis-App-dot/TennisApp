@@ -27,6 +27,7 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
     // Additional fields from joined tables (not in database, for display only)
     private string _classTitle = string.Empty;
     private int _classDuration = 1;
+    private double _reserveDuration;
 
     // ========================================================================
     // Database Fields (ตรงกับ Database Schema)
@@ -204,6 +205,24 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Duration as double (actual reserved duration from DB — c_reserve_duration)
+    /// Falls back to ClassDuration if not set
+    /// </summary>
+    public double Duration
+    {
+        get => _reserveDuration > 0 ? _reserveDuration : ClassDuration;
+        set
+        {
+            if (SetProperty(ref _reserveDuration, value))
+            {
+                OnPropertyChanged(nameof(DurationDisplay));
+                OnPropertyChanged(nameof(EndTimeDisplay));
+                OnPropertyChanged(nameof(TimeRangeDisplay));
+            }
+        }
+    }
+
     // ========================================================================
     // Display Properties (สำหรับแสดงใน UI)
     // ========================================================================
@@ -245,15 +264,6 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Duration as double (for compatibility with PaidCourtReservation)
-    /// </summary>
-    public double Duration
-    {
-        get => ClassDuration;
-        set => ClassDuration = (int)Math.Round(value);
-    }
-
-    /// <summary>
     /// Display Reserve Date (e.g., "16/04/2025")
     /// </summary>
     public string ReserveDateDisplay => ReserveDate.ToString("dd/MM/yyyy");
@@ -264,20 +274,19 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
     public string ReserveTimeDisplay => ReserveTime.ToString(@"hh\:mm");
 
     /// <summary>
-    /// Display Duration (from ClassDuration)
-    /// Example: "1 ชม.", "2 ชม."
+    /// Display Duration (from actual Duration)
+    /// Example: "1.5 ชม.", "2 ชม."
     /// </summary>
-    public string DurationDisplay => $"{ClassDuration} ชม.";
+    public string DurationDisplay => $"{Duration:0.#} ชม.";
 
     /// <summary>
-    /// Display End Time (คำนวณจาก ReserveTime + ClassDuration)
-    /// Example: ReserveTime=08:00, ClassDuration=2 → EndTime=10:00
+    /// Display End Time (คำนวณจาก ReserveTime + Duration)
     /// </summary>
     public string EndTimeDisplay
     {
         get
         {
-            var endTime = ReserveTime.Add(TimeSpan.FromHours(ClassDuration));
+            var endTime = ReserveTime.Add(TimeSpan.FromHours(Duration));
             return endTime.ToString(@"hh\:mm");
         }
     }
@@ -369,7 +378,7 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
             return false;
 
         var thisStart = ReserveTime;
-        var thisEnd = ReserveTime.Add(TimeSpan.FromHours(ClassDuration));
+        var thisEnd = ReserveTime.Add(TimeSpan.FromHours(Duration));
         var otherStart = startTime;
         var otherEnd = startTime.Add(TimeSpan.FromHours(duration));
 
@@ -394,6 +403,7 @@ public class CourseCourtReservationItem : INotifyPropertyChanged
             ReservePhone = this.ReservePhone,
             ClassTitle = this.ClassTitle,
             ClassDuration = this.ClassDuration,
+            Duration = this.Duration,
             Status = this.Status,
             ActualStart = this.ActualStart,
             ActualEnd = this.ActualEnd

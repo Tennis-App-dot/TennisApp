@@ -13,6 +13,7 @@ namespace TennisApp.Presentation.Pages;
 public sealed partial class RegisterCoursePage : Page
 {
     private readonly DatabaseService _database;
+    private NotificationService? _notify;
     private List<ClassRegisRecordItem> _allRegistrations = new();
     private readonly ObservableCollection<ClassRegisRecordItem> _filteredRegistrations = new();
 
@@ -26,6 +27,7 @@ public sealed partial class RegisterCoursePage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        _notify = NotificationService.GetFromPage(this);
         await LoadRegistrationsAsync();
     }
 
@@ -118,10 +120,13 @@ public sealed partial class RegisterCoursePage : Page
     {
         if (sender is Button button && button.Tag is ClassRegisRecordItem record)
         {
-            bool confirmed = await ShowConfirmDialog(
-                "ลบรายการสมัคร",
-                $"ต้องการลบรายการสมัครของ {record.TraineeName}\nคอร์ส {record.ClassId} - {record.ClassName} หรือไม่?"
-            );
+            bool confirmed = _notify != null
+                ? await _notify.ShowDeleteConfirmAsync(
+                    $"รายการสมัครของ {record.TraineeName} คอร์ส {record.ClassId} - {record.ClassName}",
+                    this.XamlRoot!)
+                : await ShowConfirmDialog(
+                    "ลบรายการสมัคร",
+                    $"ต้องการลบรายการสมัครของ {record.TraineeName}\nคอร์ส {record.ClassId} - {record.ClassName} หรือไม่?");
             if (!confirmed) return;
 
             try
@@ -131,65 +136,31 @@ public sealed partial class RegisterCoursePage : Page
                 if (success)
                 {
                     await LoadRegistrationsAsync();
-                    await ShowMessageDialog("สำเร็จ", "ลบรายการสมัครเรียบร้อยแล้ว");
+                    _notify?.ShowSuccess("ลบรายการสมัครเรียบร้อยแล้ว");
                 }
                 else
                 {
-                    await ShowMessageDialog("ข้อผิดพลาด", "ไม่สามารถลบรายการได้");
+                    _notify?.ShowError("ไม่สามารถลบรายการได้");
                 }
             }
             catch (Exception ex)
             {
-                await ShowMessageDialog("ข้อผิดพลาด", $"เกิดข้อผิดพลาด: {ex.Message}");
+                _notify?.ShowError($"เกิดข้อผิดพลาด: {ex.Message}");
             }
         }
     }
 
-    // ── Dialogs ───────────────────────────────────────────────
-    private async System.Threading.Tasks.Task ShowMessageDialog(string title, string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = new TextBlock
-            {
-                Text = title,
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-            },
-            Content = new TextBlock
-            {
-                Text = message,
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                TextWrapping = TextWrapping.Wrap
-            },
-            CloseButtonText = "ตกลง",
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
-        };
-        await dialog.ShowAsync();
-    }
-
+    // ── Dialogs (fallback when _notify is null) ───────────────
     private async System.Threading.Tasks.Task<bool> ShowConfirmDialog(string title, string message)
     {
         var dialog = new ContentDialog
         {
-            Title = new TextBlock
-            {
-                Text = title,
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-            },
-            Content = new TextBlock
-            {
-                Text = message,
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai"),
-                TextWrapping = TextWrapping.Wrap
-            },
+            Title = title,
+            Content = message,
             PrimaryButtonText = "ใช่",
             CloseButtonText = "ไม่",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("ms-appx:///Assets/Fonts/NotoSansThai-Regular.ttf#Noto Sans Thai")
+            XamlRoot = this.XamlRoot
         };
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }

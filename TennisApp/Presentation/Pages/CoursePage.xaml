@@ -48,6 +48,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <TextBlock x:Name="HeaderTitle"
@@ -56,7 +57,20 @@
                        Foreground="#1A1A2E"
                        VerticalAlignment="Center"/>
 
-            <Button x:Name="AddButton" Grid.Column="1"
+            <Button Grid.Column="1"
+                    Click="BtnManageCourseTypes_Click"
+                    Background="#EDE7F6" Foreground="#6C2BD9"
+                    Height="52" FontSize="15" FontWeight="SemiBold"
+                    Padding="20,0" CornerRadius="14"
+                    BorderThickness="0" Margin="0,0,10,0">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE762;" FontSize="16"/>
+                    <TextBlock Text="รูปแบบคอร์ส" VerticalAlignment="Center"
+                               FontSize="15" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Button>
+
+            <Button x:Name="AddButton" Grid.Column="2"
                     Click="AddButton_Click"
                     Background="#6C2BD9" Foreground="White"
                     Height="52" FontSize="16" FontWeight="Bold"

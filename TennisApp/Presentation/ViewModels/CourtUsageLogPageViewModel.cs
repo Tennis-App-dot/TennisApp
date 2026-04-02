@@ -186,9 +186,16 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         {
             var courts = await _databaseService.Courts.GetCourtsByStatusAsync("1");
             var today = DateTime.Today;
+            var yesterday = today.AddDays(-1);
 
-            var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(today);
-            var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(today);
+            // ✅ ดึงทั้งวันนี้และเมื่อวาน เพื่อจับ in_use ที่ค้างข้ามวัน
+            var paidResToday = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(today);
+            var courseResToday = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(today);
+            var paidResYesterday = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(yesterday);
+            var courseResYesterday = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(yesterday);
+
+            var paidRes = paidResToday.Concat(paidResYesterday).ToList();
+            var courseRes = courseResToday.Concat(courseResYesterday).ToList();
 
             CourtStatuses.Clear();
 
@@ -207,9 +214,12 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                     status.UsageType = "Paid";
                     status.StartTime = activePaid.ReserveTime;
                     status.Duration = activePaid.Duration;
-                    status.Price = activePaid.ActualPrice ?? 0;
+                    status.Price = activePaid.ActualPrice > 0
+                        ? activePaid.ActualPrice.Value
+                        : AppConstants.CalculateCourtPrice(activePaid.ReserveTime, activePaid.Duration);
                     status.ReserveId = activePaid.ReserveId;
                     status.LogStatus = "in_use";
+                    status.ActualStartTime = activePaid.ActualStart;
                 }
 
                 var activeCourse = courseRes.FirstOrDefault(r =>
@@ -227,6 +237,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                     status.Price = 0;
                     status.ReserveId = activeCourse.ReserveId;
                     status.LogStatus = "in_use";
+                    status.ActualStartTime = activeCourse.ActualStart;
                 }
 
                 CourtStatuses.Add(status);
@@ -261,7 +272,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                 CustomerPhone = paid.ReservePhone;
                 IsFromReservation = true;
                 IsWalkIn = false;
-                CalculatedPrice = (int)(UsageDuration * 200);
+                CalculatedPrice = AppConstants.CalculateCourtPrice(UsageTime, UsageDuration);
                 return true;
             }
 
@@ -318,7 +329,6 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             {
                 var cEnd = paidConflict.ReserveTime.Add(TimeSpan.FromHours(paidConflict.Duration));
                 return $"สนาม {courtId} ไม่ว่าง!\n\n" +
-                       $"ชนกับ: {paidConflict.ReserveId}\n" +
                        $"ผู้จอง: {paidConflict.ReserveName}\n" +
                        $"เวลา: {paidConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
                        $"สถานะ: {(paidConflict.Status == "in_use" ? "กำลังใช้งาน" : "จองแล้ว")}";
@@ -337,7 +347,6 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             {
                 var cEnd = courseConflict.ReserveTime.Add(TimeSpan.FromHours(courseConflict.Duration));
                 return $"สนาม {courtId} ไม่ว่าง!\n\n" +
-                       $"ชนกับ: {courseConflict.ReserveId}\n" +
                        $"คอร์ส: {courseConflict.ClassTitle}\n" +
                        $"ผู้จอง: {courseConflict.ReserveName}\n" +
                        $"เวลา: {courseConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
@@ -394,7 +403,8 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                     ReserveName = CustomerName,
                     ReservePhone = CustomerPhone,
                     Status = "in_use",
-                    ActualStart = DateTime.Now
+                    ActualStart = DateTime.Now,
+                    ActualPrice = AppConstants.CalculateCourtPrice(UsageTime, UsageDuration)
                 };
                 if (!await _databaseService.PaidCourtReservations.AddReservationAsync(reservation))
                     return false;
@@ -407,6 +417,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                 reservation.Status = "in_use";
                 reservation.CourtId = SelectedCourtId;
                 reservation.ActualStart = DateTime.Now;
+                reservation.ActualPrice = AppConstants.CalculateCourtPrice(reservation.ReserveTime, reservation.Duration);
                 await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
             }
 
@@ -427,12 +438,22 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         {
             if (IsWalkIn || string.IsNullOrEmpty(SelectedReserveId))
             {
+                // ✅ ดึง trainer_id จาก Course table เพื่อให้ INNER JOIN ทำงานได้
+                var trainerId = string.Empty;
+                if (!string.IsNullOrEmpty(SelectedCourseId))
+                {
+                    var course = await _databaseService.Courses.GetCourseByIdAsync(SelectedCourseId);
+                    if (course != null)
+                        trainerId = course.TrainerId;
+                }
+
                 var reserveId = await ReservationIdGenerator.GenerateCourseReservationIdAsync(_databaseService, DateTime.Now);
                 var reservation = new CourseCourtReservationItem
                 {
                     ReserveId = reserveId,
                     CourtId = SelectedCourtId,
                     ClassId = SelectedCourseId,
+                    TrainerId = trainerId,
                     RequestDate = DateTime.Now,
                     ReserveDate = UsageDate,
                     ReserveTime = UsageTime,
@@ -492,14 +513,20 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
 
                 if (success)
                 {
+                    // คำนวณ duration จริงจาก ActualStart → ActualEnd
+                    var actualStart = reservation.ActualStart ?? DateTime.Now;
+                    var actualEnd = reservation.ActualEnd ?? DateTime.Now;
+                    var actualDuration = (actualEnd - actualStart).TotalHours;
+                    if (actualDuration < 0) actualDuration = 0;
+
                     var logId = await ReservationIdGenerator.GeneratePaidUseLogIdAsync(_databaseService, DateTime.Now);
                     var log = new PaidCourtUseLogItem
                     {
                         LogId = logId,
                         ReserveId = reservation.ReserveId,
                         CourtId = reservation.CourtId,
-                        CheckInTime = reservation.ActualStart ?? DateTime.Now,
-                        LogDuration = reservation.Duration,
+                        CheckInTime = actualStart,
+                        LogDuration = Math.Round(actualDuration, 2),
                         LogPrice = EndUsagePrice,
                         LogStatus = "completed",
                         ReserveName = reservation.ReserveName,
@@ -523,6 +550,12 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
 
                 if (success)
                 {
+                    // คำนวณ duration จริงจาก ActualStart → ActualEnd
+                    var actualStart = reservation.ActualStart ?? DateTime.Now;
+                    var actualEnd = reservation.ActualEnd ?? DateTime.Now;
+                    var actualDuration = (actualEnd - actualStart).TotalHours;
+                    if (actualDuration < 0) actualDuration = 0;
+
                     var logId = await ReservationIdGenerator.GenerateCourseUseLogIdAsync(_databaseService, DateTime.Now);
                     var log = new CourseCourtUseLogItem
                     {
@@ -530,8 +563,8 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                         ReserveId = reservation.ReserveId,
                         CourtId = reservation.CourtId,
                         ClassId = reservation.ClassId,
-                        CheckInTime = reservation.ActualStart ?? DateTime.Now,
-                        LogDuration = reservation.Duration,
+                        CheckInTime = actualStart,
+                        LogDuration = Math.Round(actualDuration, 2),
                         LogStatus = "completed",
                         ReserveName = reservation.ReserveName,
                         ReservePhone = reservation.ReservePhone,
@@ -573,9 +606,30 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             var startTime = SelectedCourtStatus.StartTime;
             var newDuration = SelectedCourtStatus.Duration + ExtendHours;
             var newEndTime = startTime.Add(TimeSpan.FromHours(newDuration));
-            var today = DateTime.Today;
 
-            var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(today);
+            // ✅ ตรวจสอบเวลาสิ้นสุดไม่เกิน 21:00
+            if (newEndTime > TimeSpan.FromHours(21))
+            {
+                return $"ไม่สามารถขยายเวลาได้\nเวลาสิ้นสุดใหม่ ({newEndTime:hh\\:mm}) เกิน 21:00";
+            }
+
+            // ✅ ใช้ ReserveDate จาก reservation จริง แทน hardcode DateTime.Today
+            // เพื่อรองรับ in_use ที่ค้างข้ามวัน
+            DateTime reserveDate;
+            if (SelectedCourtStatus.UsageType == "Paid")
+            {
+                var res = await _databaseService.PaidCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                reserveDate = res?.ReserveDate ?? DateTime.Today;
+            }
+            else
+            {
+                var res = await _databaseService.CourseCourtReservations
+                    .GetReservationByIdAsync(SelectedCourtStatus.ReserveId);
+                reserveDate = res?.ReserveDate ?? DateTime.Today;
+            }
+
+            var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(reserveDate);
             var conflict = paidRes.FirstOrDefault(r =>
                 r.CourtId == courtId &&
                 r.ReserveId != SelectedCourtStatus.ReserveId &&
@@ -586,10 +640,10 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             if (conflict != null)
             {
                 var end = conflict.ReserveTime.Add(TimeSpan.FromHours(conflict.Duration));
-                return $"ชนกับการจอง {conflict.ReserveId}\nผู้จอง: {conflict.ReserveName}\nเวลา: {conflict.ReserveTime:hh\\:mm} - {end:hh\\:mm}";
+                return $"ชนกับการจอง\nผู้จอง: {conflict.ReserveName}\nเวลา: {conflict.ReserveTime:hh\\:mm} - {end:hh\\:mm}";
             }
 
-            var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(today);
+            var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(reserveDate);
             var conflictC = courseRes.FirstOrDefault(r =>
                 r.CourtId == courtId &&
                 r.ReserveId != SelectedCourtStatus.ReserveId &&
@@ -600,7 +654,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
             if (conflictC != null)
             {
                 var end = conflictC.ReserveTime.Add(TimeSpan.FromHours(conflictC.Duration));
-                return $"ชนกับการจองคอร์ส {conflictC.ReserveId}\nผู้จอง: {conflictC.ReserveName}\nเวลา: {conflictC.ReserveTime:hh\\:mm} - {end:hh\\:mm}";
+                return $"ชนกับการจองคอร์ส\nผู้จอง: {conflictC.ReserveName}\nเวลา: {conflictC.ReserveTime:hh\\:mm} - {end:hh\\:mm}";
             }
 
             return null;
@@ -722,7 +776,9 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         if (courtStatus == null || !courtStatus.IsInUse) return;
 
         SelectedCourtStatus = courtStatus;
-        EndUsagePrice = courtStatus.Price;
+        EndUsagePrice = courtStatus.UsageType == "Paid" && courtStatus.Price <= 0
+            ? AppConstants.CalculateCourtPrice(courtStatus.StartTime, courtStatus.Duration)
+            : courtStatus.Price;
         ExtendHours = 1.0;
         IsDetailCardVisible = true;
     }
@@ -787,8 +843,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     [RelayCommand]
     public void CalculatePrice()
     {
-        const int pricePerHour = 200;
-        CalculatedPrice = (int)(UsageDuration * pricePerHour);
+        CalculatedPrice = AppConstants.CalculateCourtPrice(UsageTime, UsageDuration);
     }
 
     partial void OnUsageTimeChanged(TimeSpan value) => OnPropertyChanged(nameof(EstimatedEndTime));

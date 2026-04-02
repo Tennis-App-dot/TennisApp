@@ -96,7 +96,7 @@
                                 BorderThickness="1">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <FontIcon Glyph="&#xE898;" FontSize="14"/>
-                                <TextBlock Text="อัปโหลดรูปภาพ" VerticalAlignment="Center"/>
+                                <TextBlock Text="เลือกรูปภาพ" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
                         <TextBlock Grid.Column="1"
@@ -152,27 +152,36 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- วันที่ปรับปรุงสนาม (full width) -->
-                <StackPanel Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE787;" FontSize="12" Foreground="#9CA3AF"/>
-                        <TextBlock Text="วันที่ปรับปรุงสนาม"
-                                   FontSize="13" FontWeight="Medium"
-                                   Foreground="#374151"/>
+                <!-- วันที่ปรับปรุงสนาม (half width - column 0) -->
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE787;" FontSize="12" Foreground="#9CA3AF"/>
+                            <TextBlock Text="วันที่ปรับปรุงสนาม"
+                                       FontSize="13" FontWeight="Medium"
+                                       Foreground="#374151"/>
+                        </StackPanel>
+                        <Button x:Name="BtnPickMaintenanceDate"
+                                Click="BtnPickMaintenanceDate_Click"
+                                HorizontalAlignment="Stretch"
+                                Background="White" Height="42"
+                                BorderBrush="#E5E7EB" CornerRadius="10"
+                                HorizontalContentAlignment="Left"
+                                Padding="14,0">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE787;" FontSize="14" Foreground="#9CA3AF"/>
+                                <TextBlock x:Name="TxtMaintenanceDateDisplay"
+                                           Text="เลือกวันที่ปรับปรุง"
+                                           FontSize="14" Foreground="#9CA3AF"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                    <Border CornerRadius="10"
-                            BorderBrush="#E5E7EB"
-                            BorderThickness="1"
-                            Height="42"
-                            Background="Transparent">
-                        <DatePicker Date="{Binding MaintenanceDateForPicker, Mode=TwoWay}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Center"
-                                    FontSize="14"
-                                    BorderThickness="0"
-                                    Background="Transparent"/>
-                    </Border>
-                </StackPanel>
+                </Grid>
 
             </StackPanel>
         </ScrollViewer>

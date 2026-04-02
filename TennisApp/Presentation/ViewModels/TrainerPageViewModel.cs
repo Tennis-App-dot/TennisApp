@@ -19,9 +19,6 @@ public partial class TrainerPageViewModel : ObservableObject
     private string _searchKeyword = string.Empty;
     
     [ObservableProperty]
-    private string _selectedSearchField = "All";
-    
-    [ObservableProperty]
     private bool _isLoading;
     
     [ObservableProperty]
@@ -37,14 +34,6 @@ public partial class TrainerPageViewModel : ObservableObject
     private const int PageSize = 50;
     
     public ObservableCollection<TrainerItem> Trainers { get; } = new();
-    
-    public ObservableCollection<string> SearchFields { get; } = new()
-    {
-        "ทั้งหมด",
-        "รหัสประจำตัวผู้ฝึกสอน",
-        "ชื่อ",
-        "เบอร์โทรศัพท์"
-    };
 
     public TrainerPageViewModel()
     {
@@ -76,10 +65,10 @@ public partial class TrainerPageViewModel : ObservableObject
 
             var result = await _databaseService.Trainers.SearchAsync(
                 SearchKeyword,
-                SelectedSearchField,
+                "All",
                 _currentPage,
                 PageSize
-            ).ConfigureAwait(false);
+            );
 
             foreach (var trainer in result.Items)
             {
@@ -124,10 +113,10 @@ public partial class TrainerPageViewModel : ObservableObject
 
             var result = await _databaseService.Trainers.SearchAsync(
                 SearchKeyword,
-                SelectedSearchField,
+                "All",
                 _currentPage,
                 PageSize
-            ).ConfigureAwait(false);
+            );
 
             foreach (var trainer in result.Items)
             {
@@ -187,7 +176,7 @@ public partial class TrainerPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"🗑️ Deleting trainer {trainerId}...");
             
-            var success = await _databaseService.Trainers.DeleteTrainerAsync(trainerId).ConfigureAwait(false);
+            var success = await _databaseService.Trainers.DeleteTrainerAsync(trainerId);
             
             if (success)
             {

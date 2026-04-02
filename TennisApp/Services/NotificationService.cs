@@ -25,7 +25,7 @@ public class NotificationService
 
         _autoDismissTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(3)
+            Interval = TimeSpan.FromSeconds(8)
         };
         _autoDismissTimer.Tick += (s, e) =>
         {

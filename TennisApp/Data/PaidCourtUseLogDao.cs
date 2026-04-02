@@ -346,4 +346,27 @@ public class PaidCourtUseLogDao
             ReserveDuration = reader.GetDouble(reader.GetOrdinal("p_reserve_duration"))
         };
     }
+
+    /// <summary>
+    /// หา max log_id ที่ขึ้นต้นด้วย prefix (สำหรับ ID generation)
+    /// </summary>
+    public async Task<string?> GetMaxLogIdByPrefixAsync(string prefix)
+    {
+        const string sql = "SELECT MAX(p_log_id) FROM PaidCourtUseLog WHERE p_log_id LIKE @prefix || '%'";
+        try
+        {
+            await using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@prefix", prefix);
+            var result = await command.ExecuteScalarAsync();
+            return result == DBNull.Value ? null : result?.ToString();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"❌ PaidCourtUseLogDao.GetMaxLogIdByPrefixAsync error: {ex.Message}");
+            return null;
+        }
+    }
 }

@@ -34,16 +34,12 @@ public sealed partial class CourseRegistrationFormPage : Page
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // Reload every time we navigate here (including when returning from TraineeFormPage)
         await LoadCourseCardsAsync();
     }
 
     // ── Search ────────────────────────────────────────────────
     private void TxtCourseSearch_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        RenderCourseCards(GetFilteredCards());
-    }
-
-    private void BtnCourseSearch_Click(object sender, RoutedEventArgs e)
     {
         RenderCourseCards(GetFilteredCards());
     }
@@ -87,9 +83,10 @@ public sealed partial class CourseRegistrationFormPage : Page
         }
     }
 
+    // ── Render course list (vertical list items) ──────────────
     private void RenderCourseCards(List<CourseCardItem> cards)
     {
-        CourseCardsPanel.Children.Clear();
+        CourseListView.Items.Clear();
 
         if (cards.Count == 0)
         {
@@ -101,95 +98,122 @@ public sealed partial class CourseRegistrationFormPage : Page
 
         foreach (var card in cards)
         {
-            CourseCardsPanel.Children.Add(CreateCourseCard(card));
+            CourseListView.Items.Add(CreateCourseListItem(card));
         }
     }
 
-    private Border CreateCourseCard(CourseCardItem card)
+    private Border CreateCourseListItem(CourseCardItem card)
     {
         bool isSelected = _selectedCard != null && _selectedCard.CompositeKey == card.CompositeKey;
 
         var border = new Border
         {
-            Width = 155,
-            MinHeight = 170,
-            CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(isSelected ? 2.5 : 1),
-            BorderBrush = isSelected
-                ? new SolidColorBrush(ColorHelper.FromArgb(255, 74, 20, 140))
-                : new SolidColorBrush(ColorHelper.FromArgb(255, 224, 224, 224)),
             Background = isSelected
                 ? new SolidColorBrush(ColorHelper.FromArgb(255, 243, 229, 245))
                 : new SolidColorBrush(Colors.White),
-            Padding = new Thickness(14),
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(isSelected ? 2 : 1),
+            BorderBrush = isSelected
+                ? new SolidColorBrush(ColorHelper.FromArgb(255, 74, 20, 140))
+                : new SolidColorBrush(ColorHelper.FromArgb(255, 232, 232, 232)),
+            Padding = new Thickness(14, 10, 14, 10),
             Tag = card.CompositeKey
         };
 
-        border.Tapped += CourseCard_Tapped;
+        // Main layout: Left info + Right stats
+        var mainGrid = new Grid();
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
 
-        var stack = new StackPanel { Spacing = 6 };
+        // ── Left side: Course ID label + Title + Trainer ──
+        var leftStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
 
-        stack.Children.Add(new TextBlock
+        // Course ID label (e.g. "คอร์ส T112")
+        leftStack.Children.Add(new TextBlock
         {
-            Text = card.ClassId, FontSize = 18,
+            Text = $"คอร์ส {card.ClassId}",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 108, 43, 217))
+        });
+
+        // Course title
+        leftStack.Children.Add(new TextBlock
+        {
+            Text = card.ClassTitle,
+            FontSize = 15,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 74, 20, 140))
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = card.ClassTitle, FontSize = 13,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1,
-            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 66, 66, 66))
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = card.SessionsText, FontSize = 12,
-            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 158, 158, 158))
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = card.DefaultPriceText, FontSize = 15,
-            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 211, 47, 47)),
-            Margin = new Thickness(0, 2, 0, 0)
-        });
-        stack.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(ColorHelper.FromArgb(255, 238, 238, 238)),
-            Margin = new Thickness(0, 2, 0, 2)
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 26, 26, 46)),
+            TextTrimming = TextTrimming.CharacterEllipsis
         });
 
+        // Trainer row
         var trainerPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         trainerPanel.Children.Add(new FontIcon
         {
-            Glyph = card.HasTrainer ? "\uE77B" : "\uE7BA", FontSize = 13,
-            Foreground = card.HasTrainer
-                ? new SolidColorBrush(ColorHelper.FromArgb(255, 33, 150, 243))
-                : new SolidColorBrush(ColorHelper.FromArgb(255, 255, 152, 0))
+            Glyph = "\uE77B",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 107, 114, 128))
         });
         trainerPanel.Children.Add(new TextBlock
         {
-            Text = card.TrainerName, FontSize = 12,
-            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 97, 97, 97)),
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, MaxWidth = 100
+            Text = card.TrainerName,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 107, 114, 128)),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 180
         });
-        stack.Children.Add(trainerPanel);
+        leftStack.Children.Add(trainerPanel);
 
-        stack.Children.Add(new TextBlock
+        Grid.SetColumn(leftStack, 0);
+        mainGrid.Children.Add(leftStack);
+
+        // ── Right side: Sessions + Price + Registration count ──
+        var rightStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+
+        rightStack.Children.Add(new TextBlock
         {
-            Text = card.RegistrationCountText, FontSize = 11,
-            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 158, 158, 158))
+            Text = card.SessionsText,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 107, 114, 128)),
+            HorizontalAlignment = HorizontalAlignment.Right
         });
 
-        border.Child = stack;
+        rightStack.Children.Add(new TextBlock
+        {
+            Text = card.DefaultPrice > 0 ? $"฿{card.DefaultPrice:N0}" : "-",
+            FontSize = 15,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 211, 47, 47)),
+            HorizontalAlignment = HorizontalAlignment.Right
+        });
+
+        // Registration count badge
+        var regPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right };
+        regPanel.Children.Add(new FontIcon
+        {
+            Glyph = "\uE77B",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 156, 163, 175))
+        });
+        regPanel.Children.Add(new TextBlock
+        {
+            Text = $"{card.RegistrationCount} คนลง",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 156, 163, 175))
+        });
+        rightStack.Children.Add(regPanel);
+
+        Grid.SetColumn(rightStack, 1);
+        mainGrid.Children.Add(rightStack);
+
+        border.Child = mainGrid;
         return border;
     }
 
-    // ── Course card tap ───────────────────────────────────────
-    private void CourseCard_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    // ── Course list selection ─────────────────────────────────
+    private void CourseListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is Border border && border.Tag is string compositeKey)
+        if (CourseListView.SelectedItem is Border selectedBorder && selectedBorder.Tag is string compositeKey)
         {
             var card = _allCourseCards.FirstOrDefault(c => c.CompositeKey == compositeKey);
             if (card == null) return;
@@ -197,13 +221,6 @@ public sealed partial class CourseRegistrationFormPage : Page
             if (_selectedCard != null) _selectedCard.IsSelected = false;
             _selectedCard = card;
             _selectedCard.IsSelected = true;
-
-            TxtSelectedCourseId.Text = $"คอร์ส {card.ClassId}";
-            TxtCourseName.Text = card.ClassTitle;
-            TxtCourseTrainer.Text = card.TrainerName;
-            TxtSessionInfo.Text = card.SessionsText;
-            TxtPackagePrice.Text = $"฿{card.DefaultPrice:N0}";
-            CourseDetailsPanel.Visibility = Visibility.Visible;
 
             _selectedPrice = card.DefaultPrice;
             BtnAddTrainee.IsEnabled = true;
@@ -213,6 +230,12 @@ public sealed partial class CourseRegistrationFormPage : Page
             UpdateButtonStates();
             RenderCourseCards(GetFilteredCards());
         }
+    }
+
+    // ── Navigate to add new trainee ───────────────────────────
+    private void BtnNewTrainee_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(TraineeFormPage));
     }
 
     // ── Trainee management ────────────────────────────────────

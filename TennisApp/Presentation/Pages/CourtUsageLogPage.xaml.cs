@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Media;
 using TennisApp.Models;
 using TennisApp.Presentation.ViewModels;
 using TennisApp.Services;
+using TennisApp.Helpers;
 
 namespace TennisApp.Presentation.Pages;
 
@@ -27,16 +28,22 @@ public sealed partial class CourtUsageLogPage : Page
     // Merged reservation list for date navigator
     private List<object> _bookedReservations = new();
 
+    // Walk-in course selection
+    private List<CourseItem> _allWalkInCourses = new();
+    private CourseItem? _selectedWalkInCourse;
+
     public CourtUsageLogPage()
     {
         this.InitializeComponent();
         DataContext = VM;
         this.Loaded += Page_Loaded;
+        this.Unloaded += Page_Unloaded;
     }
 
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
         _notify = NotificationService.GetFromPage(this);
+        InputScrollHelper.Attach(this);
 
         try
         {
@@ -57,6 +64,11 @@ public sealed partial class CourtUsageLogPage : Page
             System.Diagnostics.Debug.WriteLine($"❌ Load failed: {ex.Message}");
             _notify?.ShowError($"โหลดข้อมูลล้มเหลว: {ex.Message}");
         }
+    }
+
+    private void Page_Unloaded(object sender, RoutedEventArgs e)
+    {
+        InputScrollHelper.Detach(this);
     }
 
     // ====================================================================
@@ -365,7 +377,7 @@ public sealed partial class CourtUsageLogPage : Page
         var conflictMessage = await VM.CheckExtendConflictAsync();
         if (conflictMessage != null)
         {
-            _notify?.ShowWarning($"ไม่สามารถขยายเวลาได้\n{conflictMessage}");
+            await ShowWarningDialog("ไม่สามารถขยายเวลาได้", conflictMessage);
             return;
         }
 
@@ -413,11 +425,37 @@ public sealed partial class CourtUsageLogPage : Page
             VM.EndUsagePrice = 0;
         }
 
-        var confirmMsg = court.UsageType == "Paid"
-            ? $"สิ้นสุดการใช้งาน {court.CourtDisplayName}?\n" +
-              $"ผู้ใช้: {court.UserName}\nระยะเวลา: {court.DurationDisplay}\nค่าบริการ: ฿{VM.EndUsagePrice:N0}"
-            : $"สิ้นสุดการใช้งาน {court.CourtDisplayName}?\n" +
-              $"คอร์ส: {court.CourseTitle}\nผู้ใช้: {court.UserName}\nระยะเวลา: {court.DurationDisplay}";
+        // ข้อ 6: คำนวณเวลาจริงสำหรับ popup
+        var now = DateTime.Now;
+        var actualStartDisplay = court.ActualStartTime.HasValue
+            ? court.ActualStartTime.Value.TimeOfDay
+            : court.StartTime;
+        var actualEndTime = now.TimeOfDay;
+        var actualDuration = actualEndTime - actualStartDisplay;
+        if (actualDuration < TimeSpan.Zero) actualDuration = TimeSpan.Zero;
+        var durationText = actualDuration.TotalHours >= 1
+            ? $"{(int)actualDuration.TotalHours} ชม. {actualDuration.Minutes} นาที"
+            : $"{actualDuration.Minutes} นาที";
+
+        string confirmMsg;
+        if (court.UsageType == "Paid")
+        {
+            confirmMsg = $"สิ้นสุดการใช้งาน {court.CourtDisplayName}\n\n" +
+                         $"👤 ผู้ใช้: {court.UserName}\n" +
+                         $"⏰ เวลาเริ่มต้น: {actualStartDisplay:hh\\:mm}\n" +
+                         $"⏰ เวลาสิ้นสุด: {actualEndTime:hh\\:mm}\n" +
+                         $"⏱️ ระยะเวลาจริง: {durationText}\n" +
+                         $"💰 ค่าบริการ: ฿{VM.EndUsagePrice:N0}";
+        }
+        else
+        {
+            confirmMsg = $"สิ้นสุดการใช้งาน {court.CourtDisplayName}\n\n" +
+                         $"📚 คอร์ส: {court.CourseTitle}\n" +
+                         $"👤 ผู้ใช้: {court.UserName}\n" +
+                         $"⏰ เวลาเริ่มต้น: {actualStartDisplay:hh\\:mm}\n" +
+                         $"⏰ เวลาสิ้นสุด: {actualEndTime:hh\\:mm}\n" +
+                         $"⏱️ ระยะเวลาจริง: {durationText}";
+        }
 
         if (!await ShowConfirm("สิ้นสุดการใช้งาน", confirmMsg)) return;
 
@@ -756,7 +794,7 @@ public sealed partial class CourtUsageLogPage : Page
             VM.SelectedCourtId, VM.UsageDate, VM.UsageTime, VM.UsageDuration, VM.SelectedReserveId);
         if (conflict != null)
         {
-            _notify?.ShowWarning(conflict);
+            await ShowWarningDialog("สนามไม่ว่าง", conflict);
             return;
         }
 
@@ -795,33 +833,48 @@ public sealed partial class CourtUsageLogPage : Page
         {
             _notify?.ShowWarning("กรุณาเลือกเวลาเริ่ม"); return;
         }
-        if (WalkInDurationComboBox.SelectedItem is not ComboBoxItem durItem || durItem.Tag == null)
+        if (WalkInEndTimeComboBox.SelectedItem is not ComboBoxItem endTimeItem || endTimeItem.Tag == null)
         {
-            _notify?.ShowWarning("กรุณาเลือกระยะเวลา"); return;
+            _notify?.ShowWarning("กรุณาเลือกเวลาสิ้นสุด"); return;
         }
         if (string.IsNullOrWhiteSpace(WalkInNameTextBox.Text))
         {
             _notify?.ShowWarning("กรุณากรอกชื่อผู้ใช้งาน"); return;
         }
 
+        // Validate phone number (ถ้ากรอก)
+        if (!string.IsNullOrWhiteSpace(WalkInPhoneTextBox.Text))
+        {
+            var phone = WalkInPhoneTextBox.Text.Trim();
+            if (phone.Length != 10 || !phone.All(char.IsDigit))
+            {
+                _notify?.ShowWarning("เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก"); return;
+            }
+        }
+
         var usageTypeItem = WalkInTypeComboBox.SelectedItem as ComboBoxItem;
         var usageType = usageTypeItem?.Tag?.ToString() ?? "Paid";
 
-        if (usageType == "Course" && (WalkInCourseComboBox.SelectedItem is not ComboBoxItem courseItem || courseItem.Tag == null))
+        if (usageType == "Course" && _selectedWalkInCourse == null)
         {
             _notify?.ShowWarning("กรุณาเลือกคอร์ส"); return;
         }
 
         var selectedCourtId = courtItem.Tag.ToString()!;
         var selectedTime = TimeSpan.Parse(timeItem.Tag.ToString()!);
-        var selectedDuration = double.Parse(durItem.Tag.ToString()!, CultureInfo.InvariantCulture);
+        var selectedDuration = CalculateWalkInDuration();
+
+        if (selectedDuration <= 0)
+        {
+            _notify?.ShowWarning("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่ม"); return;
+        }
 
         // ✅ ตรวจสอบซ้อนทับก่อนเช็คอิน Walk-in
         var conflict = await VM.CheckCourtConflictForCheckinAsync(
             selectedCourtId, DateTime.Today, selectedTime, selectedDuration);
         if (conflict != null)
         {
-            _notify?.ShowWarning(conflict);
+            await ShowWarningDialog("สนามไม่ว่าง", conflict);
             return;
         }
 
@@ -838,14 +891,15 @@ public sealed partial class CourtUsageLogPage : Page
 
         if (usageType == "Course")
         {
-            VM.SelectedCourseId = (WalkInCourseComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            VM.SelectedCourseId = _selectedWalkInCourse?.ClassId ?? "";
         }
 
+        var endTimeTs = selectedTime.Add(TimeSpan.FromHours(selectedDuration));
         var confirmed = await ShowConfirm("ยืนยันเช็คอิน Walk-in",
             $"สนาม {VM.SelectedCourtId}\n" +
-            $"เวลา: {VM.UsageTime:hh\\:mm} → {VM.EstimatedEndTime}\n" +
+            $"เวลา: {VM.UsageTime:hh\\:mm} → {endTimeTs:hh\\:mm} ({selectedDuration:0.0} ชม.)\n" +
             $"ผู้ใช้: {VM.CustomerName}\n" +
-            (usageType == "Paid" ? "ประเภท: เช่าสนาม" : $"คอร์ส: {(WalkInCourseComboBox.SelectedItem as ComboBoxItem)?.Content}"));
+            (usageType == "Paid" ? "ประเภท: เช่าสนาม" : $"คอร์ส: {_selectedWalkInCourse?.ClassTitle} ({_selectedWalkInCourse?.TrainerDisplayName})"));
         if (!confirmed) return;
 
         bool success = usageType == "Paid"
@@ -866,9 +920,12 @@ public sealed partial class CourtUsageLogPage : Page
     {
         WalkInCourtComboBox.SelectedIndex = -1;
         WalkInTimeComboBox.SelectedIndex = -1;
-        WalkInDurationComboBox.SelectedIndex = -1;
+        WalkInEndTimeComboBox.SelectedIndex = -1;
         WalkInTypeComboBox.SelectedIndex = 0;
-        WalkInCourseComboBox.SelectedIndex = -1;
+        _selectedWalkInCourse = null;
+        WalkInCourseSearchBox.Text = string.Empty;
+        WalkInSelectedCoursePreview.Visibility = Visibility.Collapsed;
+        RenderWalkInCourseList(_allWalkInCourses);
         WalkInNameTextBox.Text = string.Empty;
         WalkInPhoneTextBox.Text = string.Empty;
         WalkInEndTimePanel.Visibility = Visibility.Collapsed;
@@ -887,22 +944,71 @@ public sealed partial class CourtUsageLogPage : Page
         WalkInCoursePanel.Visibility = tag == "Course" ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void WalkInTimeOrDuration_Changed(object sender, SelectionChangedEventArgs e)
+    private void WalkInStartTime_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (WalkInTimeComboBox.SelectedItem is ComboBoxItem timeItem && timeItem.Tag != null &&
-            WalkInDurationComboBox.SelectedItem is ComboBoxItem durItem && durItem.Tag != null)
+        PopulateWalkInEndTimeComboBox();
+        UpdateWalkInEndTimePreview();
+    }
+
+    private void WalkInEndTime_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateWalkInEndTimePreview();
+    }
+
+    private void PopulateWalkInEndTimeComboBox()
+    {
+        WalkInEndTimeComboBox.Items.Clear();
+        WalkInEndTimeComboBox.SelectedIndex = -1;
+
+        var startTag = (WalkInTimeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        if (string.IsNullOrEmpty(startTag) || !TimeSpan.TryParse(startTag, out var start))
+            return;
+
+        var maxEnd = TimeSpan.FromHours(21);
+        var current = start.Add(TimeSpan.FromMinutes(30));
+        while (current <= maxEnd)
         {
-            if (TimeSpan.TryParse(timeItem.Tag.ToString(), out var start) &&
-                double.TryParse(durItem.Tag.ToString(), System.Globalization.NumberStyles.Any,
-                    CultureInfo.InvariantCulture, out var dur))
+            var dur = (current - start).TotalHours;
+            var item = new ComboBoxItem
             {
-                var end = start.Add(TimeSpan.FromHours(dur));
-                WalkInEndTimeText.Text = end.ToString(@"hh\:mm");
-                WalkInEndTimePanel.Visibility = Visibility.Visible;
-                return;
-            }
+                Content = $"{current:hh\\:mm} ({dur:0.0} ชม.)",
+                Tag = current.ToString(@"hh\:mm")
+            };
+            WalkInEndTimeComboBox.Items.Add(item);
+            current = current.Add(TimeSpan.FromMinutes(30));
         }
-        WalkInEndTimePanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdateWalkInEndTimePreview()
+    {
+        var startTag = (WalkInTimeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        var endTag = (WalkInEndTimeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+
+        if (!string.IsNullOrEmpty(startTag) && !string.IsNullOrEmpty(endTag)
+            && TimeSpan.TryParse(startTag, out var start) && TimeSpan.TryParse(endTag, out var end)
+            && end > start)
+        {
+            var dur = (end - start).TotalHours;
+            WalkInEndTimePreviewText.Text = $"{start:hh\\:mm} → {end:hh\\:mm} ({dur:0.0} ชม.)";
+            WalkInEndTimePanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            WalkInEndTimePanel.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private double CalculateWalkInDuration()
+    {
+        var startTag = (WalkInTimeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        var endTag = (WalkInEndTimeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        if (!string.IsNullOrEmpty(startTag) && !string.IsNullOrEmpty(endTag)
+            && TimeSpan.TryParse(startTag, out var start) && TimeSpan.TryParse(endTag, out var end)
+            && end > start)
+        {
+            return (end - start).TotalHours;
+        }
+        return 0;
     }
 
     // ====================================================================
@@ -930,14 +1036,162 @@ public sealed partial class CourtUsageLogPage : Page
 
     private void PopulateCourseComboBox()
     {
-        WalkInCourseComboBox.Items.Clear();
-        foreach (var course in VM.AvailableCourses)
+        _allWalkInCourses = VM.AvailableCourses.ToList();
+        _selectedWalkInCourse = null;
+        RenderWalkInCourseList(_allWalkInCourses);
+    }
+
+    private void RenderWalkInCourseList(List<CourseItem> courses)
+    {
+        WalkInCourseListView.Items.Clear();
+        foreach (var course in courses)
         {
-            WalkInCourseComboBox.Items.Add(new ComboBoxItem
+            WalkInCourseListView.Items.Add(BuildWalkInCourseCard(course));
+        }
+    }
+
+    private Border BuildWalkInCourseCard(CourseItem course)
+    {
+        bool isSelected = _selectedWalkInCourse != null
+            && _selectedWalkInCourse.CompositeKey == course.CompositeKey;
+
+        var card = new Border
+        {
+            Background = new SolidColorBrush(isSelected
+                ? Microsoft.UI.ColorHelper.FromArgb(255, 243, 229, 245)
+                : Microsoft.UI.Colors.White),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(isSelected ? 2 : 1),
+            BorderBrush = new SolidColorBrush(isSelected
+                ? Microsoft.UI.ColorHelper.FromArgb(255, 74, 20, 140)
+                : ParseColor("#E8E8E8")),
+            Padding = new Thickness(10, 6, 10, 6),
+            Tag = course.CompositeKey
+        };
+
+        var stack = new StackPanel { Spacing = 2 };
+
+        // Row 1: ClassId badge + title + price
+        var row1 = new Grid();
+        row1.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row1.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row1.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var idBadge = new Border
+        {
+            Background = new SolidColorBrush(ParseColor("#4A148C")),
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(5, 1, 5, 1),
+            Margin = new Thickness(0, 0, 6, 0)
+        };
+        idBadge.Child = new TextBlock
+        {
+            Text = course.ClassId,
+            FontSize = 10,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White)
+        };
+        Grid.SetColumn(idBadge, 0);
+        row1.Children.Add(idBadge);
+
+        var title = new TextBlock
+        {
+            Text = course.ClassTitle,
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(ParseColor("#333")),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(title, 1);
+        row1.Children.Add(title);
+
+        if (course.ClassRate > 0)
+        {
+            var price = new TextBlock
             {
-                Content = course.ClassTitle,
-                Tag = course.ClassId
-            });
+                Text = $"฿{course.ClassRate:N0}",
+                FontSize = 11,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(ParseColor("#D32F2F")),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            Grid.SetColumn(price, 2);
+            row1.Children.Add(price);
+        }
+        stack.Children.Add(row1);
+
+        // Row 2: sessions + trainer
+        var row2 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        row2.Children.Add(new TextBlock
+        {
+            Text = course.SessionCountText,
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ParseColor("#9E9E9E"))
+        });
+        var trainerPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        trainerPanel.Children.Add(new FontIcon
+        {
+            Glyph = "\uE77B",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ParseColor("#2196F3"))
+        });
+        trainerPanel.Children.Add(new TextBlock
+        {
+            Text = course.TrainerDisplayName,
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ParseColor("#616161")),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 140
+        });
+        row2.Children.Add(trainerPanel);
+        stack.Children.Add(row2);
+
+        card.Child = stack;
+        return card;
+    }
+
+    private void WalkInCourseSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var keyword = WalkInCourseSearchBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(keyword))
+        {
+            RenderWalkInCourseList(_allWalkInCourses);
+            return;
+        }
+
+        var filtered = _allWalkInCourses.Where(c =>
+            c.ClassId.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+            c.ClassTitle.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+            c.TrainerDisplayName.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+        ).ToList();
+
+        RenderWalkInCourseList(filtered);
+    }
+
+    private void WalkInCourseListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (WalkInCourseListView.SelectedItem is Border selectedBorder
+            && selectedBorder.Tag is string compositeKey)
+        {
+            _selectedWalkInCourse = _allWalkInCourses.FirstOrDefault(c => c.CompositeKey == compositeKey);
+            if (_selectedWalkInCourse != null)
+            {
+                WalkInSelectedCourseText.Text =
+                    $"{_selectedWalkInCourse.ClassId} — {_selectedWalkInCourse.ClassTitle} ({_selectedWalkInCourse.TrainerDisplayName})";
+                WalkInSelectedCoursePreview.Visibility = Visibility.Visible;
+
+                // Refresh visual state
+                var keyword = WalkInCourseSearchBox.Text?.Trim() ?? string.Empty;
+                var list = string.IsNullOrEmpty(keyword) ? _allWalkInCourses
+                    : _allWalkInCourses.Where(c =>
+                        c.ClassId.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                        c.ClassTitle.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                        c.TrainerDisplayName.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                    ).ToList();
+                RenderWalkInCourseList(list);
+            }
         }
     }
 
@@ -955,7 +1209,7 @@ public sealed partial class CourtUsageLogPage : Page
     // Helpers
     // ====================================================================
 
-    private static StackPanel MakeIconText(string glyph, string text, string color)
+    private static StackPanel MakeIconText(string glyph, String text, String color)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
         sp.Children.Add(new FontIcon
@@ -973,21 +1227,25 @@ public sealed partial class CourtUsageLogPage : Page
         return sp;
     }
 
-    private static Windows.UI.Color ParseColor(string hex)
-    {
-        hex = hex.TrimStart('#');
-        if (hex.Length == 6)
-            return Windows.UI.Color.FromArgb(255,
-                byte.Parse(hex[..2], NumberStyles.HexNumber),
-                byte.Parse(hex[2..4], NumberStyles.HexNumber),
-                byte.Parse(hex[4..6], NumberStyles.HexNumber));
-        return Windows.UI.Color.FromArgb(255, 158, 158, 158);
-    }
+    private static Windows.UI.Color ParseColor(string hex) => UIHelper.ParseColor(hex);
 
     private async Task<bool> ShowConfirm(string title, string content)
     {
         if (_notify == null) return false;
         return await _notify.ShowConfirmAsync(title, content, this.XamlRoot!);
+    }
+
+    private async Task ShowWarningDialog(string title, string content)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = content,
+            CloseButtonText = "ตกลง",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+        await dialog.ShowAsync();
     }
 
     private void CourtCard_HeaderTapped(object sender, TappedRoutedEventArgs e)

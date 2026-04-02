@@ -65,6 +65,7 @@
 
         <!-- Main Card -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
             <Border Background="White" CornerRadius="16"
                     BorderBrush="#E5E7EB" BorderThickness="1"
                     Padding="28,24"
@@ -179,38 +180,54 @@
                             </StackPanel>
                         </Grid>
 
-                        <StackPanel Grid.Row="2" Spacing="6">
-                            <TextBlock Text="วันเกิด" FontSize="16" FontWeight="SemiBold"/>
-                            <DatePicker x:Name="DateBirthDate"
-                                        Background="White" Height="52"
-                                        HorizontalAlignment="Stretch"
-                                        BorderBrush="#E5E7EB" CornerRadius="10"/>
-                        </StackPanel>
-
-                        <Grid Grid.Row="3" ColumnSpacing="16" Margin="0,10,0,0">
+                        <Grid Grid.Row="2" ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0"
-                                    Content="ยกเลิก"
+                            <StackPanel Grid.Column="0" Spacing="6">
+                                <TextBlock Text="วันเกิด" FontSize="16" FontWeight="SemiBold"/>
+                                <Button x:Name="BtnPickBirthDate"
+                                        Click="BtnPickBirthDate_Click"
+                                        HorizontalAlignment="Stretch"
+                                        Background="White" Height="52"
+                                        BorderBrush="#E5E7EB" CornerRadius="10"
+                                        HorizontalContentAlignment="Left"
+                                        Padding="14,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <FontIcon Glyph="&#xE787;" FontSize="16" Foreground="#9CA3AF"/>
+                                        <TextBlock x:Name="TxtBirthDateDisplay"
+                                                   Text="เลือกวันเกิด"
+                                                   FontSize="17" Foreground="#9CA3AF"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" 
+                                    Spacing="12" Margin="0,10,0,0"
+                                    HorizontalAlignment="Right">
+                            <Button Content="ยกเลิก"
                                     Background="White" Foreground="#6B7280"
                                     FontSize="17" Height="54" CornerRadius="12"
-                                    HorizontalAlignment="Stretch"
                                     BorderBrush="#E5E7EB" BorderThickness="1"
+                                    Padding="32,0"
                                     Click="BtnCancel_Click"/>
-                            <Button Grid.Column="1"
-                                    Content="บันทึกข้อมูล"
+                            <Button Content="บันทึกข้อมูล"
                                     Background="#6C2BD9" Foreground="White"
                                     FontSize="17" FontWeight="SemiBold"
                                     Height="54" CornerRadius="12"
-                                    HorizontalAlignment="Stretch"
                                     BorderThickness="0"
+                                    Padding="32,0"
                                     Click="BtnSave_Click"/>
-                        </Grid>
+                        </StackPanel>
                     </Grid>
                 </Grid>
             </Border>
+            <!-- Keyboard spacer -->
+            <Border x:Name="KeyboardSpacer" Height="0" Background="Transparent"/>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </Page>

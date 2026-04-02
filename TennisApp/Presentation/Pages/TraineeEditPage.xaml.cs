@@ -4,7 +4,9 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 using TennisApp.Models;
 using TennisApp.Services;
+using TennisApp.Presentation.Dialogs;
 using System.Text.RegularExpressions;
+using TennisApp.Helpers;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
@@ -19,13 +21,19 @@ public sealed partial class TraineeEditPage : Page
     private string? _traineeId;
     private byte[]? _selectedImageData;
     private NotificationService? _notify;
+    private DateTime? _selectedBirthDate;
 
     public TraineeEditPage()
     {
         InitializeComponent();
         _databaseService = ((App)Application.Current).DatabaseService;
         _databaseService.EnsureInitialized();
-        this.Loaded += (s, e) => _notify = NotificationService.GetFromPage(this);
+        this.Loaded += (s, e) =>
+        {
+            _notify = NotificationService.GetFromPage(this);
+            InputScrollHelper.Attach(this);
+        };
+        this.Unloaded += (s, e) => InputScrollHelper.Detach(this);
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -53,7 +61,11 @@ public sealed partial class TraineeEditPage : Page
                 TxtNickname.Text = _currentTrainee.Nickname ?? string.Empty;
 
                 if (_currentTrainee.BirthDate.HasValue)
-                    DateBirthDate.Date = new DateTimeOffset(_currentTrainee.BirthDate.Value);
+                {
+                    _selectedBirthDate = _currentTrainee.BirthDate.Value;
+                    TxtBirthDateDisplay.Text = _currentTrainee.BirthDate.Value.ToString("dd/MM/yyyy");
+                    TxtBirthDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+                }
 
                 if (_currentTrainee.ImageData != null && _currentTrainee.ImageData.Length > 0)
                 {
@@ -64,6 +76,7 @@ public sealed partial class TraineeEditPage : Page
                         ProfileImage.Visibility = Visibility.Visible;
                         PlaceholderIcon.Visibility = Visibility.Collapsed;
                     }
+                    _selectedImageData = _currentTrainee.ImageData;
                 }
             }
             else
@@ -74,6 +87,17 @@ public sealed partial class TraineeEditPage : Page
         catch (Exception ex)
         {
             _notify?.ShowError($"เกิดข้อผิดพลาดในการโหลดข้อมูล: {ex.Message}");
+        }
+    }
+
+    private async void BtnPickBirthDate_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await DatePickerDialog.ShowAsync(this.XamlRoot!, _selectedBirthDate, allowPastDates: true);
+        if (result.HasValue)
+        {
+            _selectedBirthDate = result.Value;
+            TxtBirthDateDisplay.Text = result.Value.ToString("dd/MM/yyyy");
+            TxtBirthDateDisplay.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
         }
     }
 
@@ -112,13 +136,11 @@ public sealed partial class TraineeEditPage : Page
             var originalText = textBox.Text;
             var selectionStart = textBox.SelectionStart;
 
-            // ลบตัวอักษรที่ไม่ใช่ตัวเลข (เก็บเฉพาะ 0-9)
             var numericText = Regex.Replace(originalText, @"[^\d]", "");
 
             if (originalText != numericText)
             {
                 textBox.Text = numericText;
-                // คืนตำแหน่ง cursor
                 textBox.SelectionStart = Math.Min(selectionStart, numericText.Length);
             }
         }
@@ -126,25 +148,17 @@ public sealed partial class TraineeEditPage : Page
 
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("TraineeEditPage: Cancel button clicked");
-        
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
+        if (Frame.CanGoBack) Frame.GoBack();
     }
 
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("TraineeEditPage: Save button clicked");
-
         if (_currentTrainee == null)
         {
             _notify?.ShowError("ไม่พบข้อมูลผู้เรียนที่จะแก้ไข");
             return;
         }
 
-        // Validate required fields
         if (string.IsNullOrWhiteSpace(TxtFirstName.Text))
         {
             _notify?.ShowWarning("กรุณากรอกชื่อ");
@@ -159,46 +173,27 @@ public sealed partial class TraineeEditPage : Page
 
         try
         {
-            // Get birth date if selected
-            DateTime? birthDate = null;
-            if (DateBirthDate.Date.Year > 1900)
-            {
-                birthDate = DateBirthDate.Date.DateTime;
-            }
-            
-            // Update trainee data
             _currentTrainee.FirstName = TxtFirstName.Text.Trim();
             _currentTrainee.LastName = TxtLastName.Text.Trim();
             _currentTrainee.Nickname = string.IsNullOrWhiteSpace(TxtNickname.Text) ? string.Empty : TxtNickname.Text.Trim();
             _currentTrainee.Phone = string.IsNullOrWhiteSpace(TxtPhone.Text) ? string.Empty : TxtPhone.Text.Trim();
-            _currentTrainee.BirthDate = birthDate;
-            _currentTrainee.ImageData = _selectedImageData; // อัปเดตรูปภาพ
+            _currentTrainee.BirthDate = _selectedBirthDate;
+            _currentTrainee.ImageData = _selectedImageData;
 
-            System.Diagnostics.Debug.WriteLine($"Updating trainee: {_currentTrainee.FullName} (ID: {_currentTrainee.TraineeId})");
-            System.Diagnostics.Debug.WriteLine($"Image data: {_selectedImageData?.Length ?? 0} bytes");
-
-            // Save to database
             var success = await _databaseService.Trainees.UpdateTraineeAsync(_currentTrainee);
 
             if (success)
             {
-                System.Diagnostics.Debug.WriteLine("✅ Trainee updated successfully");
                 _notify?.ShowSuccess("บันทึกข้อมูลผู้เรียนเรียบร้อยแล้ว");
-                
-                if (Frame.CanGoBack)
-                {
-                    Frame.GoBack();
-                }
+                if (Frame.CanGoBack) Frame.GoBack();
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("❌ Failed to update trainee");
                 _notify?.ShowError("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ Error updating trainee: {ex.Message}");
             _notify?.ShowError($"เกิดข้อผิดพลาด: {ex.Message}");
         }
     }

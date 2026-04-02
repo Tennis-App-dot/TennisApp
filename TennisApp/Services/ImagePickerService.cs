@@ -16,6 +16,7 @@ namespace TennisApp.Services;
 /// <summary>
 /// บริการเลือกและจัดการรูปภาพแบบ cross-platform (Windows + Android)
 /// รวม logic: picker → validate → compress → crop → return byte[]
+/// รองรับ: เลือกจากแกลเลอรี่ + ถ่ายรูปจากกล้อง (Android)
 /// </summary>
 public static class ImagePickerService
 {
@@ -23,30 +24,241 @@ public static class ImagePickerService
     private const int MaxCompressedSizeKB = 3072; // 3MB หลัง compress
 
     /// <summary>
-    /// เลือกรูปภาพ + crop เป็นวงกลม (สำหรับ profile: Trainer, Trainee)
+    /// แสดง dialog ให้เลือก "ถ่ายรูป" หรือ "เลือกจากแกลเลอรี่" แล้ว crop เป็นวงกลม
     /// </summary>
     public static async Task<ImagePickResult> PickAndCropCircleAsync(XamlRoot xamlRoot)
     {
-        return await PickAndCropAsync(xamlRoot, CropShape.Circle, 400, 400);
+        var bytes = await AcquireImageBytesAsync(xamlRoot);
+        if (bytes == null) return ImagePickResult.Cancelled();
+        return await CropImageAsync(xamlRoot, bytes, CropShape.Circle, 400, 400);
     }
 
     /// <summary>
-    /// เลือกรูปภาพ + crop เป็นสี่เหลี่ยม (สำหรับ Court)
+    /// แสดง dialog ให้เลือก "ถ่ายรูป" หรือ "เลือกจากแกลเลอรี่" แล้ว crop เป็นสี่เหลี่ยม
     /// </summary>
     public static async Task<ImagePickResult> PickAndCropRectangleAsync(XamlRoot xamlRoot, int width = 534, int height = 300)
     {
-        return await PickAndCropAsync(xamlRoot, CropShape.Rectangle, width, height);
+        var bytes = await AcquireImageBytesAsync(xamlRoot);
+        if (bytes == null) return ImagePickResult.Cancelled();
+        return await CropImageAsync(xamlRoot, bytes, CropShape.Rectangle, width, height);
     }
 
+    // ====================================================================
+    // Source Selection (Camera vs Gallery)
+    // ====================================================================
+
     /// <summary>
-    /// Core method: เลือกรูปภาพ → validate → compress → crop → return
+    /// แสดง dialog เลือกแหล่งรูปภาพ แล้ว return byte[] หรือ null ถ้ายกเลิก
     /// </summary>
-    private static async Task<ImagePickResult> PickAndCropAsync(
-        XamlRoot xamlRoot, CropShape cropShape, int cropWidth, int cropHeight)
+    private static async Task<byte[]?> AcquireImageBytesAsync(XamlRoot xamlRoot)
+    {
+        // บน Android → แสดง dialog เลือก กล้อง/แกลเลอรี่
+        // บน Windows → ไปแกลเลอรี่โดยตรง (ไม่มีกล้อง)
+#if __ANDROID__
+        var choice = await ShowImageSourceDialogAsync(xamlRoot);
+        return choice switch
+        {
+            "camera" => await CaptureFromCameraAsync(),
+            "gallery" => await PickFromGalleryAsync(),
+            _ => null
+        };
+#else
+        return await PickFromGalleryAsync();
+#endif
+    }
+
+#if __ANDROID__
+    private static async Task<string?> ShowImageSourceDialogAsync(XamlRoot xamlRoot)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "เลือกรูปภาพ",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    CreateSourceButton("\uE722", "ถ่ายรูปจากกล้อง", "camera"),
+                    CreateSourceButton("\uE8B9", "เลือกจากแกลเลอรี่", "gallery")
+                }
+            },
+            CloseButtonText = "ยกเลิก",
+            XamlRoot = xamlRoot
+        };
+
+        string? result = null;
+
+        // Wire up button clicks
+        if (dialog.Content is StackPanel panel)
+        {
+            foreach (var child in panel.Children)
+            {
+                if (child is Button btn)
+                {
+                    btn.Click += (s, e) =>
+                    {
+                        result = (s as Button)?.Tag as string;
+                        dialog.Hide();
+                    };
+                }
+            }
+        }
+
+        await dialog.ShowAsync();
+        return result;
+    }
+
+    private static Button CreateSourceButton(string glyph, string text, string tag)
+    {
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 12,
+            Children =
+            {
+                new FontIcon
+                {
+                    Glyph = glyph, FontSize = 20,
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(UIHelper.ParseColor("#4A148C"))
+                },
+                new TextBlock
+                {
+                    Text = text, FontSize = 16,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(UIHelper.ParseColor("#333333"))
+                }
+            }
+        };
+
+        return new Button
+        {
+            Content = content,
+            Tag = tag,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(UIHelper.ParseColor("#F5F5F5")),
+            CornerRadius = new CornerRadius(10),
+            Height = 56,
+            Padding = new Thickness(16, 0, 16, 0),
+            BorderThickness = new Thickness(0)
+        };
+    }
+#endif
+
+    // ====================================================================
+    // Camera Capture (Android only)
+    // ====================================================================
+
+#if __ANDROID__
+    private static TaskCompletionSource<byte[]?>? _cameraTcs;
+    private static string? _cameraPhotoPath;
+
+    private static async Task<byte[]?> CaptureFromCameraAsync()
     {
         try
         {
-            // 1. สร้าง File Picker
+            var context = Android.App.Application.Context;
+
+            // Check camera permission
+            if (AndroidX.Core.Content.ContextCompat.CheckSelfPermission(context, Android.Manifest.Permission.Camera)
+                != Android.Content.PM.Permission.Granted)
+            {
+                // Try to request permission
+                var activity = TennisApp.Droid.MainActivity.Current;
+                if (activity != null)
+                {
+                    AndroidX.Core.App.ActivityCompat.RequestPermissions(activity,
+                        [Android.Manifest.Permission.Camera], 1001);
+
+                    // Give user time to respond
+                    await Task.Delay(2000);
+
+                    if (AndroidX.Core.Content.ContextCompat.CheckSelfPermission(context, Android.Manifest.Permission.Camera)
+                        != Android.Content.PM.Permission.Granted)
+                    {
+                        System.Diagnostics.Debug.WriteLine("❌ Camera permission denied");
+                        return null;
+                    }
+                }
+            }
+
+            // Create temp file for photo
+            var photoDir = context.GetExternalFilesDir(Android.OS.Environment.DirectoryPictures);
+            if (photoDir == null) return null;
+
+            var photoFile = new Java.IO.File(photoDir, $"camera_{DateTime.Now:yyyyMMdd_HHmmss}.jpg");
+            _cameraPhotoPath = photoFile.AbsolutePath;
+
+            var photoUri = AndroidX.Core.Content.FileProvider.GetUriForFile(
+                context,
+                context.PackageName + ".fileprovider",
+                photoFile);
+
+            // Launch camera intent
+            var intent = new Android.Content.Intent(Android.Provider.MediaStore.ActionImageCapture);
+            intent.PutExtra(Android.Provider.MediaStore.ExtraOutput, photoUri);
+            intent.AddFlags(Android.Content.ActivityFlags.GrantWriteUriPermission);
+
+            _cameraTcs = new TaskCompletionSource<byte[]?>();
+
+            var activity2 = TennisApp.Droid.MainActivity.Current;
+            if (activity2 != null)
+            {
+                activity2.StartActivityForResult(intent, TennisApp.Droid.MainActivity.CameraRequestCode);
+            }
+            else
+            {
+                return null;
+            }
+
+            // Wait for result
+            var result = await _cameraTcs.Task;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ CaptureFromCamera Error: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// เรียกจาก MainActivity.OnActivityResult เมื่อกล้องส่งรูปกลับมา
+    /// </summary>
+    public static void OnCameraResult(bool success)
+    {
+        try
+        {
+            if (success && _cameraPhotoPath != null && System.IO.File.Exists(_cameraPhotoPath))
+            {
+                var bytes = System.IO.File.ReadAllBytes(_cameraPhotoPath);
+                System.Diagnostics.Debug.WriteLine($"📸 Camera captured: {bytes.Length / 1024}KB");
+                _cameraTcs?.TrySetResult(bytes);
+
+                // Cleanup temp file
+                try { System.IO.File.Delete(_cameraPhotoPath); } catch { }
+            }
+            else
+            {
+                _cameraTcs?.TrySetResult(null);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ OnCameraResult Error: {ex.Message}");
+            _cameraTcs?.TrySetResult(null);
+        }
+    }
+#endif
+
+    // ====================================================================
+    // Gallery Pick
+    // ====================================================================
+
+    private static async Task<byte[]?> PickFromGalleryAsync()
+    {
+        try
+        {
             var picker = new FileOpenPicker();
             picker.ViewMode = PickerViewMode.Thumbnail;
             picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
@@ -54,41 +266,46 @@ public static class ImagePickerService
             picker.FileTypeFilter.Add(".jpeg");
             picker.FileTypeFilter.Add(".png");
 
-            // 2. ตั้งค่า Window Handle (เฉพาะ Windows — Android ข้ามขั้นตอนนี้)
             InitializePickerForPlatform(picker);
 
-            // 3. เลือกไฟล์
             var file = await picker.PickSingleFileAsync();
-            if (file == null)
-            {
-                return ImagePickResult.Cancelled();
-            }
+            if (file == null) return null;
 
             System.Diagnostics.Debug.WriteLine($"📸 Selected file: {file.Name}");
 
-            // 4. Validate ขนาดไฟล์
             var properties = await file.GetBasicPropertiesAsync();
             if (properties.Size > MaxFileSizeBytes)
             {
-                return ImagePickResult.Failed("ไฟล์ใหญ่เกินไป", $"ขนาดไฟล์ต้องไม่เกิน {MaxFileSizeBytes / 1024 / 1024}MB");
+                System.Diagnostics.Debug.WriteLine($"❌ File too large: {properties.Size}");
+                return null;
             }
 
-            // 5. Validate นามสกุลไฟล์
-            if (!ImageHelper.IsValidImageExtension(file.Name))
-            {
-                return ImagePickResult.Failed("ไฟล์ไม่ถูกต้อง", "กรุณาเลือกไฟล์ JPEG หรือ PNG");
-            }
+            if (!ImageHelper.IsValidImageExtension(file.Name)) return null;
 
-            // 6. อ่านไฟล์ + compress
             var bytes = await ImageHelper.ConvertToByteArrayAsync(file, MaxCompressedSizeKB);
-            if (bytes == null || bytes.Length == 0)
-            {
+            return bytes;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ PickFromGallery Error: {ex.Message}");
+            return null;
+        }
+    }
+
+    // ====================================================================
+    // Crop
+    // ====================================================================
+
+    private static async Task<ImagePickResult> CropImageAsync(
+        XamlRoot xamlRoot, byte[] bytes, CropShape cropShape, int cropWidth, int cropHeight)
+    {
+        try
+        {
+            if (bytes.Length == 0)
                 return ImagePickResult.Failed("ไม่สามารถอ่านไฟล์ได้", "กรุณาลองใหม่อีกครั้ง");
-            }
 
-            System.Diagnostics.Debug.WriteLine($"📦 Compressed: {bytes.Length / 1024}KB");
+            System.Diagnostics.Debug.WriteLine($"📦 Image: {bytes.Length / 1024}KB");
 
-            // 7. เปิด Crop Dialog
             var cropDialog = new ImageCropperDialog(bytes, cropShape, cropWidth, cropHeight)
             {
                 XamlRoot = xamlRoot
@@ -106,8 +323,8 @@ public static class ImagePickerService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"❌ ImagePickerService error: {ex.Message}");
-            return ImagePickResult.Failed("เกิดข้อผิดพลาด", $"ไม่สามารถเลือกรูปภาพได้: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"❌ CropImage Error: {ex.Message}");
+            return ImagePickResult.Failed("เกิดข้อผิดพลาด", $"ไม่สามารถตัดรูปภาพได้: {ex.Message}");
         }
     }
 
@@ -119,14 +336,12 @@ public static class ImagePickerService
         try
         {
 #if !__ANDROID__
-            // Windows: ต้องตั้ง Window Handle
             if (App.MainWindow != null)
             {
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
                 WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
             }
 #endif
-            // Android: Uno Platform จัดการ FileOpenPicker ให้อัตโนมัติ — ไม่ต้องทำอะไร
         }
         catch (Exception ex)
         {

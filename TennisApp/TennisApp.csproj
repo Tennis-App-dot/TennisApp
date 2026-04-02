@@ -1,4 +1,4 @@
-﻿<Project Sdk="Uno.Sdk">
+<Project Sdk="Uno.Sdk">
     <PropertyGroup>
         <TargetFrameworks>net9.0-android</TargetFrameworks>
         <OutputType>Exe</OutputType>
@@ -46,7 +46,10 @@
 
     <!-- Pages & Dialogs -->
     <ItemGroup>
+        <!-- Shell -->
         <Page Update="Presentation\Shell.xaml" Generator="MSBuild:Compile" />
+
+        <!-- Pages -->
         <Page Update="Presentation\Pages\CourtPage.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Pages\TrainerPage.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Pages\TrainerFormPage.xaml" Generator="MSBuild:Compile" />
@@ -60,22 +63,32 @@
         <Page Update="Presentation\Pages\CourseEditPage.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Pages\CourseRegistrationFormPage.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Pages\RegisterCoursePage.xaml" Generator="MSBuild:Compile" />
-        <Page Update="Presentation\Pages\BookingPage.xaml" Generator="MSBuild:Compile" />
-        <Page Update="Presentation\Pages\BookingFormPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\PaidBookingPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\PaidBookingFormPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\CourseBookingPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\CourseBookingFormPage.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Pages\CourtUsageLogPage.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Pages\CourseTypeManagementPage.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Pages\ReportsPage.xaml" Generator="MSBuild:Compile" />
+
+        <!-- Dialogs -->
         <Page Update="Presentation\Dialogs\CourtFormDialog.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Dialogs\ImageCropperDialog.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Dialogs\TraineeDetailCard.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Dialogs\TrainerDetailCard.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Dialogs\CourseRegistrationDialog.xaml" Generator="MSBuild:Compile" />
-        <Page Update="Presentation\Dialogs\ReservationFormDialog.xaml" Generator="MSBuild:Compile" />
         <Page Update="Presentation\Dialogs\TraineeSelectionDialog.xaml" Generator="MSBuild:Compile" />
+        <Page Update="Presentation\Dialogs\DatePickerDialog.xaml" Generator="MSBuild:Compile" />
     </ItemGroup>
 
     <!-- Assets folders -->
     <ItemGroup>
         <Folder Include="Assets\Courts\" />
+    </ItemGroup>
+
+    <!-- Android Resources -->
+    <ItemGroup Condition="$(TargetFramework.Contains('-android'))">
+        <AndroidResource Include="Platforms\Android\Resources\xml\file_paths.xml" />
     </ItemGroup>
 
     <!-- Thai Fonts -->
@@ -84,24 +97,11 @@
         <Content Include="Assets\Fonts\NotoSansThai-Bold.ttf" />
         <Content Include="Assets\Fonts\NotoSansThai-Light.ttf" />
     </ItemGroup>
-    <ItemGroup>
-      <Page Update="Presentation\Pages\PaidBookingPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-    <ItemGroup>
-      <Page Update="Presentation\Pages\CourseBookingPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-    <ItemGroup>
-      <Page Update="Presentation\Pages\PaidBookingFormPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-    <ItemGroup>
-      <Page Update="Presentation\Pages\CourseBookingFormPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
+
+    <!-- Thai Fonts as Android Assets (for SkiaSharp PDF rendering) -->
+    <ItemGroup Condition="$(TargetFramework.Contains('-android'))">
+        <AndroidAsset Include="Assets\Fonts\NotoSansThai-Regular.ttf" Link="Assets\Fonts\NotoSansThai-Regular.ttf" />
+        <AndroidAsset Include="Assets\Fonts\NotoSansThai-Bold.ttf" Link="Assets\Fonts\NotoSansThai-Bold.ttf" />
+        <AndroidAsset Include="Assets\Fonts\NotoSansThai-Light.ttf" Link="Assets\Fonts\NotoSansThai-Light.ttf" />
     </ItemGroup>
 </Project>

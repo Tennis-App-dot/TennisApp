@@ -141,7 +141,7 @@ public partial class BookingPageViewModel : ObservableObject
             System.Diagnostics.Debug.WriteLine("📥 LoadReservationsAsync เริ่มทำงาน...");
 
             // โหลดการจองแบบเช่า
-            var paidReservations = await _databaseService.PaidCourtReservations.GetAllReservationsAsync().ConfigureAwait(false);
+            var paidReservations = await _databaseService.PaidCourtReservations.GetAllReservationsAsync();
             System.Diagnostics.Debug.WriteLine($"   พบการจองแบบเช่า: {paidReservations.Count} รายการ");
 
             PaidReservations.Clear();
@@ -151,7 +151,7 @@ public partial class BookingPageViewModel : ObservableObject
             }
 
             // โหลดการจองสำหรับคอร์ส
-            var courseReservations = await _databaseService.CourseCourtReservations.GetAllReservationsAsync().ConfigureAwait(false);
+            var courseReservations = await _databaseService.CourseCourtReservations.GetAllReservationsAsync();
             System.Diagnostics.Debug.WriteLine($"   พบการจองสำหรับคอร์ส: {courseReservations.Count} รายการ");
 
             CourseReservations.Clear();
@@ -179,7 +179,7 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine("🎾 LoadAvailableCourtsAsync เริ่มทำงาน...");
 
-            var courts = await _databaseService.Courts.GetCourtsByStatusAsync("1").ConfigureAwait(false);
+            var courts = await _databaseService.Courts.GetCourtsByStatusAsync("1");
             System.Diagnostics.Debug.WriteLine($"   พบสนามที่พร้อมใช้: {courts.Count} สนาม");
 
             AvailableCourts.Clear();
@@ -206,7 +206,7 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine("📚 LoadAvailableCoursesAsync เริ่มทำงาน...");
 
-            var courses = await _databaseService.Courses.GetAllCoursesAsync().ConfigureAwait(false);
+            var courses = await _databaseService.Courses.GetAllCoursesAsync();
             System.Diagnostics.Debug.WriteLine($"   พบคอร์ส: {courses.Count} คอร์ส");
 
             AvailableCourses.Clear();
@@ -228,7 +228,7 @@ public partial class BookingPageViewModel : ObservableObject
     // ========================================================================
 
     /// <summary>
-    /// อัปเดตค่าต่างๆ สำหรับ Summary Cards
+    /// อัปเดตค่าต่ างๆ สำหรับ Summary Cards
     /// </summary>
     public void UpdateSummary()
     {
@@ -267,8 +267,7 @@ public partial class BookingPageViewModel : ObservableObject
 
             // ตรวจสอบการจองแบบเช่า
             var isPaidAvailable = await _databaseService.PaidCourtReservations
-                .IsCourtAvailableAsync(courtId, reserveDate, reserveTime, duration)
-                .ConfigureAwait(false);
+                .IsCourtAvailableAsync(courtId, reserveDate, reserveTime, duration);
 
             if (!isPaidAvailable)
             {
@@ -278,8 +277,7 @@ public partial class BookingPageViewModel : ObservableObject
 
             // ตรวจสอบการจองสำหรับคอร์ส
             var isCourseAvailable = await _databaseService.CourseCourtReservations
-                .IsCourtAvailableAsync(courtId, reserveDate, reserveTime, duration)
-                .ConfigureAwait(false);
+                .IsCourtAvailableAsync(courtId, reserveDate, reserveTime, duration);
 
             if (!isCourseAvailable)
             {
@@ -298,9 +296,9 @@ public partial class BookingPageViewModel : ObservableObject
     }
 
     /// <summary>
-    /// หาสนามที่ว่างในช่วงเวลาที่เลือก
+    /// หาสนามที่ว่างในช่วงเวลาที่เลือก (นับรวมจอง CourtId="00" ที่ยังไม่จัดสรร)
     /// </summary>
-    public async Task<List<CourtItem>> GetAvailableCourtsForTimeSlotAsync(DateTime reserveDate, TimeSpan reserveTime, double duration)
+    public async Task<List<CourtItem>> GetAvailableCourtsForTimeSlotAsync(DateTime reserveDate, TimeSpan reserveTime, double duration, string? excludeReserveId = null)
     {
         var availableCourts = new List<CourtItem>();
 
@@ -313,7 +311,35 @@ public partial class BookingPageViewModel : ObservableObject
             }
         }
 
-        System.Diagnostics.Debug.WriteLine($"🎾 พบสนามว่าง: {availableCourts.Count}/{AvailableCourts.Count} สนาม");
+        // ✅ นับจำนวนจองที่ CourtId="00" (ยังไม่จัดสรรสนาม) ที่ซ้อนทับช่วงเวลานี้
+        // เพื่อหักออกจากสนามว่างจริง ป้องกัน overbooking
+        var endTime = reserveTime.Add(TimeSpan.FromHours(duration));
+        var allPaid = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(reserveDate);
+        var allCourse = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(reserveDate);
+
+        int unassignedOverlapping = allPaid.Count(r =>
+                r.CourtId == "00" &&
+                r.ReserveId != (excludeReserveId ?? "") &&
+                r.Status is "booked" or "in_use" &&
+                r.ReserveTime < endTime &&
+                r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > reserveTime)
+            + allCourse.Count(r =>
+                r.CourtId == "00" &&
+                r.ReserveId != (excludeReserveId ?? "") &&
+                r.Status is "booked" or "in_use" &&
+                r.ReserveTime < endTime &&
+                r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > reserveTime);
+
+        // สนามว่างจริง = สนามที่ per-court check ว่าง - จำนวนจองที่ยังไม่จัดสรร
+        int effectiveAvailable = availableCourts.Count - unassignedOverlapping;
+        if (effectiveAvailable < 0) effectiveAvailable = 0;
+
+        System.Diagnostics.Debug.WriteLine($"🎾 สนามว่าง: {availableCourts.Count} (per-court) - {unassignedOverlapping} (unassigned) = {effectiveAvailable} จริง");
+
+        // ถ้าสนามว่างจริงน้อยกว่าหรือเท่ากับ 0 ให้คืน list ว่าง
+        if (effectiveAvailable <= 0)
+            return new List<CourtItem>();
+
         return availableCourts;
     }
 
@@ -331,11 +357,7 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"➕ เพิ่มการจองแบบเช่า: {reservation.ReserveId}");
 
-            // No court availability check needed since court is not assigned yet
-            // Court will be assigned later by staff
-
-            // บันทึกลง database
-            var success = await _databaseService.PaidCourtReservations.AddReservationAsync(reservation).ConfigureAwait(false);
+            var success = await _databaseService.PaidCourtReservations.AddReservationAsync(reservation);
 
             if (success)
             {
@@ -363,11 +385,10 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"✏️ แก้ไขการจองแบบเช่า: {reservation.ReserveId}");
 
-            var success = await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation).ConfigureAwait(false);
+            var success = await _databaseService.PaidCourtReservations.UpdateReservationAsync(reservation);
 
             if (success)
             {
-                // อัปเดตใน collection
                 var existing = PaidReservations.FirstOrDefault(r => r.ReserveId == reservation.ReserveId);
                 if (existing != null)
                 {
@@ -397,7 +418,7 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"🗑️ ลบการจองแบบเช่า: {reserveId}");
 
-            var success = await _databaseService.PaidCourtReservations.DeleteReservationAsync(reserveId).ConfigureAwait(false);
+            var success = await _databaseService.PaidCourtReservations.DeleteReservationAsync(reserveId);
 
             if (success)
             {
@@ -433,11 +454,7 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"➕ เพิ่มการจองสำหรับคอร์ส: {reservation.ReserveId}");
 
-            // No court availability check needed since court is not assigned yet
-            // Court will be assigned later by staff
-
-            // บันทึกลง database
-            var success = await _databaseService.CourseCourtReservations.AddReservationAsync(reservation).ConfigureAwait(false);
+            var success = await _databaseService.CourseCourtReservations.AddReservationAsync(reservation);
 
             if (success)
             {
@@ -465,11 +482,10 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"✏️ แก้ไขการจองสำหรับคอร์ส: {reservation.ReserveId}");
 
-            var success = await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation).ConfigureAwait(false);
+            var success = await _databaseService.CourseCourtReservations.UpdateReservationAsync(reservation);
 
             if (success)
             {
-                // อัปเดตใน collection
                 var existing = CourseReservations.FirstOrDefault(r => r.ReserveId == reservation.ReserveId);
                 if (existing != null)
                 {
@@ -499,7 +515,7 @@ public partial class BookingPageViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"🗑️ ลบการจองสำหรับคอร์ส: {reserveId}");
 
-            var success = await _databaseService.CourseCourtReservations.DeleteReservationAsync(reserveId).ConfigureAwait(false);
+            var success = await _databaseService.CourseCourtReservations.DeleteReservationAsync(reserveId);
 
             if (success)
             {
@@ -621,8 +637,7 @@ public partial class BookingPageViewModel : ObservableObject
                 var cEnd = paidConflict.ReserveTime.Add(TimeSpan.FromHours(paidConflict.Duration));
                 return $"พบการจองเช่าสนามของ \"{paidConflict.ReserveName}\"\n" +
                        $"วันที่ {reserveDate:dd/MM/yyyy}\n" +
-                       $"เวลา {paidConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
-                       $"รหัสจอง: {paidConflict.ReserveId}";
+                       $"เวลา {paidConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}";
             }
 
             // Check Course table
@@ -640,8 +655,7 @@ public partial class BookingPageViewModel : ObservableObject
                 return $"พบการจองคอร์สของ \"{courseConflict.ReserveName}\"\n" +
                        $"คอร์ส: {courseConflict.ClassDisplayName}\n" +
                        $"วันที่ {reserveDate:dd/MM/yyyy}\n" +
-                       $"เวลา {courseConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
-                       $"รหัสจอง: {courseConflict.ReserveId}";
+                       $"เวลา {courseConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}";
             }
 
             return null; // ไม่ซ้ำ

@@ -1,7 +1,10 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
+using Android.Graphics;
 using Android.OS;
 using Android.Views;
+using AndroidX.Core.View;
 
 namespace TennisApp.Droid;
 
@@ -12,15 +15,83 @@ namespace TennisApp.Droid;
 )]
 public class MainActivity : Microsoft.UI.Xaml.ApplicationActivity
 {
+    public static MainActivity? Current { get; private set; }
+    public const int CameraRequestCode = 9001;
+
+    /// <summary>
+    /// ความสูงของ keyboard ปัจจุบัน (pixels) — 0 = keyboard ปิด
+    /// </summary>
+    public static int CurrentKeyboardHeight { get; private set; }
+
+    /// <summary>
+    /// ความหนาแน่นหน้าจอ (density) สำหรับแปลง px → dp
+    /// </summary>
+    public static float ScreenDensity { get; private set; } = 1f;
+
     protected override void OnCreate(Bundle? savedInstanceState)
     {
+        Current = this;
+
         global::AndroidX.Core.SplashScreen.SplashScreen.InstallSplashScreen(this);
 
 #if DEBUG
-        // Validate Thai fonts are available
         TennisApp.Platforms.Android.FontHelper.TestFonts(this);
 #endif
 
         base.OnCreate(savedInstanceState);
+
+        ScreenDensity = Resources?.DisplayMetrics?.Density ?? 1f;
+
+        // ✅ ซ่อน Status Bar — แสดงแบบ full-screen
+        if (Window != null)
+        {
+            Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+
+            var controller = WindowCompat.GetInsetsController(Window, Window.DecorView);
+            if (controller != null)
+            {
+                controller.Hide(WindowInsetsCompat.Type.StatusBars());
+                controller.SystemBarsBehavior = WindowInsetsControllerCompat.BehaviorShowTransientBarsBySwipe;
+            }
+        }
+
+        // ✅ วัด keyboard height จริงผ่าน WindowInsets listener
+        SetupKeyboardListener();
+    }
+
+    private void SetupKeyboardListener()
+    {
+        var rootView = FindViewById(Android.Resource.Id.Content);
+        if (rootView == null) return;
+
+        ViewCompat.SetOnApplyWindowInsetsListener(rootView, new KeyboardInsetsListener());
+    }
+
+    private class KeyboardInsetsListener : Java.Lang.Object, IOnApplyWindowInsetsListener
+    {
+        public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets)
+        {
+            var imeInsets = insets.GetInsets(WindowInsetsCompat.Type.Ime());
+            var navInsets = insets.GetInsets(WindowInsetsCompat.Type.NavigationBars());
+
+            // keyboard height = IME inset - navigation bar inset (เอาเฉพาะส่วน keyboard)
+            var keyboardHeight = Math.Max(0, imeInsets.Bottom - navInsets.Bottom);
+            CurrentKeyboardHeight = keyboardHeight;
+
+            System.Diagnostics.Debug.WriteLine(
+                $"⌨️ Keyboard: {keyboardHeight}px ({keyboardHeight / ScreenDensity:F0}dp)");
+
+            return ViewCompat.OnApplyWindowInsets(v, insets);
+        }
+    }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        base.OnActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == CameraRequestCode)
+        {
+            Services.ImagePickerService.OnCameraResult(resultCode == Result.Ok);
+        }
     }
 }
