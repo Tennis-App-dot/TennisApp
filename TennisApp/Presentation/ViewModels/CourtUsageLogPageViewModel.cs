@@ -108,17 +108,13 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     // Constructor
     // ========================================================================
 
-    public CourtUsageLogPageViewModel()
+    public CourtUsageLogPageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
+
+    public CourtUsageLogPageViewModel(DatabaseService databaseService)
     {
-        try
-        {
-            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
-            _databaseService.EnsureInitialized();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ CourtUsageLogPageViewModel error: {ex.Message}");
-        }
+        _databaseService = databaseService;
+        _databaseService.EnsureInitialized();
+        System.Diagnostics.Debug.WriteLine("✅ CourtUsageLogPageViewModel created via DI");
     }
 
     // ========================================================================
@@ -308,6 +304,10 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
     /// <summary>
     /// ตรวจสอบว่าสนามที่เลือกมีการจอง/ใช้งานซ้อนทับหรือไม่
     /// คืน null = ว่าง, คืน string = ข้อความ conflict
+    /// 
+    /// ตรวจ 2 กรณี:
+    /// 1. สนามยัง in_use อยู่ (ค้างจากวันใดก็ตาม — ยังไม่สิ้นสุด)
+    /// 2. มี booked/in_use ที่เวลาซ้อนทับในวันเดียวกัน
     /// </summary>
     public async Task<string?> CheckCourtConflictForCheckinAsync(
         string courtId, DateTime date, TimeSpan startTime, double duration, string? excludeReserveId = null)
@@ -315,13 +315,56 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
         try
         {
             var endTime = startTime.Add(TimeSpan.FromHours(duration));
+            var exclude = excludeReserveId ?? "";
 
-            // Check Paid reservations
+            // ════════════════════════════════════════════════════════════
+            // ขั้นที่ 1: ตรวจว่าสนามนี้ยัง "in_use" อยู่หรือไม่ (ทุกวัน)
+            //   → ถ้ายังมีคนใช้อยู่ ห้ามเช็คอินซ้ำเด็ดขาด
+            // ════════════════════════════════════════════════════════════
+
+            // Check Paid in_use (any date)
+            var allPaidRes = await _databaseService.PaidCourtReservations.GetReservationsByCourtAsync(courtId);
+            var activeInUsePaid = allPaidRes.FirstOrDefault(r =>
+                r.ReserveId != exclude &&
+                r.Status == "in_use");
+
+            if (activeInUsePaid != null)
+            {
+                var cEnd = activeInUsePaid.ReserveTime.Add(TimeSpan.FromHours(activeInUsePaid.Duration));
+                return $"สนาม {courtId} ไม่ว่าง!\n\n" +
+                       $"ผู้ใช้: {activeInUsePaid.ReserveName}\n" +
+                       $"วันที่: {activeInUsePaid.ReserveDate:dd/MM/yyyy}\n" +
+                       $"เวลา: {activeInUsePaid.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
+                       $"สถานะ: กำลังใช้งาน";
+            }
+
+            // Check Course in_use (any date)
+            var allCourseRes = await _databaseService.CourseCourtReservations.GetReservationsByCourtAsync(courtId);
+            var activeInUseCourse = allCourseRes.FirstOrDefault(r =>
+                r.ReserveId != exclude &&
+                r.Status == "in_use");
+
+            if (activeInUseCourse != null)
+            {
+                var cEnd = activeInUseCourse.ReserveTime.Add(TimeSpan.FromHours(activeInUseCourse.Duration));
+                return $"สนาม {courtId} ไม่ว่าง!\n\n" +
+                       $"คอร์ส: {activeInUseCourse.ClassTitle}\n" +
+                       $"ผู้ใช้: {activeInUseCourse.ReserveName}\n" +
+                       $"วันที่: {activeInUseCourse.ReserveDate:dd/MM/yyyy}\n" +
+                       $"เวลา: {activeInUseCourse.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
+                       $"สถานะ: กำลังใช้งาน";
+            }
+
+            // ════════════════════════════════════════════════════════════
+            // ขั้นที่ 2: ตรวจ booked ที่เวลาซ้อนทับในวันเดียวกัน
+            // ════════════════════════════════════════════════════════════
+
+            // Check Paid booked (same date, time overlap)
             var paidRes = await _databaseService.PaidCourtReservations.GetReservationsByDateAsync(date);
             var paidConflict = paidRes.FirstOrDefault(r =>
                 r.CourtId == courtId &&
-                r.ReserveId != (excludeReserveId ?? "") &&
-                r.Status is "booked" or "in_use" &&
+                r.ReserveId != exclude &&
+                r.Status == "booked" &&
                 r.ReserveTime < endTime &&
                 r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
 
@@ -331,15 +374,15 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                 return $"สนาม {courtId} ไม่ว่าง!\n\n" +
                        $"ผู้จอง: {paidConflict.ReserveName}\n" +
                        $"เวลา: {paidConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
-                       $"สถานะ: {(paidConflict.Status == "in_use" ? "กำลังใช้งาน" : "จองแล้ว")}";
+                       $"สถานะ: จองแล้ว";
             }
 
-            // Check Course reservations
+            // Check Course booked (same date, time overlap)
             var courseRes = await _databaseService.CourseCourtReservations.GetReservationsByDateAsync(date);
             var courseConflict = courseRes.FirstOrDefault(r =>
                 r.CourtId == courtId &&
-                r.ReserveId != (excludeReserveId ?? "") &&
-                r.Status is "booked" or "in_use" &&
+                r.ReserveId != exclude &&
+                r.Status == "booked" &&
                 r.ReserveTime < endTime &&
                 r.ReserveTime.Add(TimeSpan.FromHours(r.Duration)) > startTime);
 
@@ -350,7 +393,7 @@ public partial class CourtUsageLogPageViewModel : ObservableObject
                        $"คอร์ส: {courseConflict.ClassTitle}\n" +
                        $"ผู้จอง: {courseConflict.ReserveName}\n" +
                        $"เวลา: {courseConflict.ReserveTime:hh\\:mm} - {cEnd:hh\\:mm}\n" +
-                       $"สถานะ: {(courseConflict.Status == "in_use" ? "กำลังใช้งาน" : "จองแล้ว")}";
+                       $"สถานะ: จองแล้ว";
             }
 
             return null; // ว่าง!

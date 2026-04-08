@@ -21,6 +21,7 @@ public sealed partial class PaidBookingPage : Page
     private NotificationService? _notify;
     private DateTime _currentDate = DateTime.Today;
     private string _currentStatusFilter = "all";
+    private bool _isDataLoaded;
 
     public PaidBookingPage()
     {
@@ -33,6 +34,9 @@ public sealed partial class PaidBookingPage : Page
     {
         base.OnNavigatedTo(e);
         _notify = NotificationService.GetFromPage(this);
+
+        // ✅ กลับจากหน้า Form ต้อง reload เพื่อแสดงข้อมูลล่าสุด
+        _isDataLoaded = false;
     }
 
     // ========================================================================
@@ -43,7 +47,11 @@ public sealed partial class PaidBookingPage : Page
     {
         try
         {
-            await VM.LoadReservationsAsync();
+            if (!_isDataLoaded || VM.PaidReservations.Count == 0)
+            {
+                await VM.LoadReservationsAsync();
+                _isDataLoaded = true;
+            }
             UpdateDateDisplay();
             ApplyFilter();
         }
@@ -202,7 +210,9 @@ public sealed partial class PaidBookingPage : Page
         var deferral = args.GetDeferral();
         try
         {
+            _isDataLoaded = false;
             await VM.LoadReservationsAsync();
+            _isDataLoaded = true;
             ApplyFilter();
         }
         catch (Exception ex)

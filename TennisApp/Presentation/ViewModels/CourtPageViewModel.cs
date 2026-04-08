@@ -15,19 +15,12 @@ public partial class CourtPageViewModel : ObservableObject
     
     public ObservableCollection<CourtItem> Courts { get; } = new();
 
-    public CourtPageViewModel()
+    public CourtPageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
+
+    public CourtPageViewModel(DatabaseService databaseService)
     {
-        System.Diagnostics.Debug.WriteLine("CourtPageViewModel constructor เริ่มทำงาน");
-        
-        try
-        {
-            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
-            System.Diagnostics.Debug.WriteLine("DatabaseService สร้างสำเร็จ");
-        }
-        catch (System.Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ CourtPageViewModel constructor error: {ex.Message}");
-        }
+        _databaseService = databaseService;
+        System.Diagnostics.Debug.WriteLine("✅ CourtPageViewModel created via DI");
     }
 
     [RelayCommand]

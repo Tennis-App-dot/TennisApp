@@ -48,6 +48,48 @@ public sealed class DatabaseService : IDisposable
     }
 
     /// <summary>
+    /// ตั้งค่า SQLite PRAGMAs เพื่อเพิ่ม performance
+    /// - WAL mode: อ่าน/เขียนพร้อมกันได้ ไม่ lock DB
+    /// - synchronous=NORMAL: เร็วขึ้น แต่ยังปลอดภัย
+    /// - cache_size: เพิ่ม in-memory cache
+    /// - temp_store=MEMORY: temp tables อยู่ใน RAM
+    /// - mmap_size: memory-mapped I/O
+    /// </summary>
+    private void ApplyPerformancePragmas()
+    {
+        try
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            string[] pragmas =
+            [
+                "PRAGMA journal_mode=WAL",
+                "PRAGMA synchronous=NORMAL",
+                "PRAGMA cache_size=-8000",       // 8MB cache
+                "PRAGMA temp_store=MEMORY",
+                "PRAGMA mmap_size=134217728",    // 128MB mmap
+                "PRAGMA page_size=4096",
+                "PRAGMA foreign_keys=ON"
+            ];
+
+            foreach (var pragma in pragmas)
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = pragma;
+                var result = cmd.ExecuteScalar();
+                System.Diagnostics.Debug.WriteLine($"   📊 {pragma} → {result}");
+            }
+
+            System.Diagnostics.Debug.WriteLine("✅ SQLite performance PRAGMAs applied");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ PRAGMA error (non-fatal): {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Lazy initialization — สร้าง DAO ครั้งแรกที่เรียกใช้ (thread-safe)
     /// </summary>
     public void EnsureInitialized()
@@ -65,6 +107,9 @@ public sealed class DatabaseService : IDisposable
 
     private void InitializeDAOs()
     {
+        // ✅ ตั้งค่า SQLite performance PRAGMAs
+        ApplyPerformancePragmas();
+
         // ✅ สร้าง Court DAO ก่อน (เพื่อให้มีสนาม "00" สำหรับ Foreign Key)
         Courts = new CourtDao(_connectionString);
         
@@ -231,6 +276,19 @@ public sealed class DatabaseService : IDisposable
             {
                 System.Diagnostics.Debug.WriteLine($"   ⚠️ {sql} → {ex.Message}");
             }
+        }
+
+        // ✅ VACUUM เพื่อคืนพื้นที่ disk (SQLite ไม่ย่อไฟล์อัตโนมัติหลัง DELETE)
+        try
+        {
+            var vacuumCmd = connection.CreateCommand();
+            vacuumCmd.CommandText = "VACUUM";
+            await vacuumCmd.ExecuteNonQueryAsync();
+            System.Diagnostics.Debug.WriteLine("   ✅ VACUUM สำเร็จ — คืนพื้นที่ disk แล้ว");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"   ⚠️ VACUUM ล้มเหลว (ไม่ร้ายแรง): {ex.Message}");
         }
 
         System.Diagnostics.Debug.WriteLine("✅ ClearAllDataAsync: ลบข้อมูลทั้งหมดเรียบร้อย");

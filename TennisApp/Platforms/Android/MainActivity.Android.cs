@@ -10,12 +10,13 @@ namespace TennisApp.Droid;
 
 [Activity(
     MainLauncher = true,
+    Theme = "@style/Theme.App.Starting",
     ConfigurationChanges = global::Uno.UI.ActivityHelper.AllConfigChanges,
     WindowSoftInputMode = SoftInput.AdjustResize | SoftInput.StateHidden
 )]
 public class MainActivity : Microsoft.UI.Xaml.ApplicationActivity
 {
-    public static MainActivity? Current { get; private set; }
+    public static new MainActivity? Current { get; private set; }
     public const int CameraRequestCode = 9001;
 
     /// <summary>
@@ -45,7 +46,9 @@ public class MainActivity : Microsoft.UI.Xaml.ApplicationActivity
         // ✅ ซ่อน Status Bar — แสดงแบบ full-screen
         if (Window != null)
         {
+#pragma warning disable CA1422 // SetStatusBarColor is obsoleted on Android 35+
             Window.SetStatusBarColor(Android.Graphics.Color.Transparent);
+#pragma warning restore CA1422
 
             var controller = WindowCompat.GetInsetsController(Window, Window.DecorView);
             if (controller != null)
@@ -69,19 +72,22 @@ public class MainActivity : Microsoft.UI.Xaml.ApplicationActivity
 
     private class KeyboardInsetsListener : Java.Lang.Object, IOnApplyWindowInsetsListener
     {
-        public WindowInsetsCompat OnApplyWindowInsets(View v, WindowInsetsCompat insets)
+        public WindowInsetsCompat OnApplyWindowInsets(View? v, WindowInsetsCompat? insets)
         {
+            if (v == null || insets == null)
+                return ViewCompat.OnApplyWindowInsets(v!, insets!) ?? insets!;
+
             var imeInsets = insets.GetInsets(WindowInsetsCompat.Type.Ime());
             var navInsets = insets.GetInsets(WindowInsetsCompat.Type.NavigationBars());
 
             // keyboard height = IME inset - navigation bar inset (เอาเฉพาะส่วน keyboard)
-            var keyboardHeight = Math.Max(0, imeInsets.Bottom - navInsets.Bottom);
+            var keyboardHeight = Math.Max(0, (imeInsets?.Bottom ?? 0) - (navInsets?.Bottom ?? 0));
             CurrentKeyboardHeight = keyboardHeight;
 
             System.Diagnostics.Debug.WriteLine(
                 $"⌨️ Keyboard: {keyboardHeight}px ({keyboardHeight / ScreenDensity:F0}dp)");
 
-            return ViewCompat.OnApplyWindowInsets(v, insets);
+            return ViewCompat.OnApplyWindowInsets(v, insets) ?? insets;
         }
     }
 

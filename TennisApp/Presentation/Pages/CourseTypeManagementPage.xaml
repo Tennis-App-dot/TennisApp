@@ -21,9 +21,13 @@
 
             <Button Click="BtnBack_Click"
                     Background="Transparent" BorderThickness="0"
-                    Height="44" Width="44" Padding="0" CornerRadius="10"
+                    Padding="0,0,12,0" CornerRadius="10"
                     VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE72B;" FontSize="20" Foreground="#6B7280"/>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE76B;" FontSize="18" Foreground="#424242"/>
+                    <TextBlock Text="กลับ" FontSize="15" Foreground="#424242"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
             </Button>
 
             <TextBlock Grid.Column="1" Text="จัดการรูปแบบคอร์ส"

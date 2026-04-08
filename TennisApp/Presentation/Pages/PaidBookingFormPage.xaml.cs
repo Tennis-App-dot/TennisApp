@@ -267,6 +267,7 @@ public sealed partial class PaidBookingFormPage : Page
             else
             {
                 var dbService = ((App)Application.Current).DatabaseService;
+                dbService.EnsureInitialized();
                 var reserveId = await ReservationIdGenerator.GeneratePaidReservationIdAsync(dbService, DateTime.Now);
                 var reservation = new PaidCourtReservationItem
                 {

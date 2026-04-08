@@ -49,6 +49,7 @@ public static class ImagePickerService
 
     /// <summary>
     /// แสดง dialog เลือกแหล่งรูปภาพ แล้ว return byte[] หรือ null ถ้ายกเลิก
+    /// ✅ ทุก path (กล้อง/แกลเลอรี่) จะผ่าน EXIF orientation fix + compression
     /// </summary>
     private static async Task<byte[]?> AcquireImageBytesAsync(XamlRoot xamlRoot)
     {
@@ -56,12 +57,26 @@ public static class ImagePickerService
         // บน Windows → ไปแกลเลอรี่โดยตรง (ไม่มีกล้อง)
 #if __ANDROID__
         var choice = await ShowImageSourceDialogAsync(xamlRoot);
-        return choice switch
+        byte[]? rawBytes = choice switch
         {
             "camera" => await CaptureFromCameraAsync(),
             "gallery" => await PickFromGalleryAsync(),
             _ => null
         };
+
+        // ✅ Camera path: compress + fix EXIF orientation (gallery path already does this)
+        if (rawBytes != null && choice == "camera")
+        {
+            System.Diagnostics.Debug.WriteLine($"📸 Camera raw: {rawBytes.Length / 1024}KB — compressing + fixing EXIF...");
+            var processed = await ImageHelper.CompressImageAsync(rawBytes, MaxCompressedSizeKB);
+            if (processed != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"✅ Camera processed: {processed.Length / 1024}KB");
+                return processed;
+            }
+        }
+
+        return rawBytes;
 #else
         return await PickFromGalleryAsync();
 #endif

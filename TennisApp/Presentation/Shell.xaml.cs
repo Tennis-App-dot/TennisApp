@@ -85,10 +85,12 @@ public sealed partial class Shell : UserControl
             if (PageMappings.TryGetValue(tag, out var pageType))
             {
                 System.Diagnostics.Debug.WriteLine($"Navigating to {pageType.Name}");
+#pragma warning disable Uno0001 // SlideNavigationTransitionInfo.Effect is not implemented in Uno
                 ContentFrame.Navigate(pageType, null, new SlideNavigationTransitionInfo
                 {
                     Effect = SlideNavigationTransitionEffect.FromRight
                 });
+#pragma warning restore Uno0001
                 System.Diagnostics.Debug.WriteLine($"✅ Navigation to {pageType.Name} successful");
             }
             else

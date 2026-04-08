@@ -142,14 +142,15 @@ public sealed partial class CourtUsageLogPage : Page
             Tag = court.CourtId
         };
 
-        var stack = new StackPanel { Spacing = 8 };
-
-        // Header row: Court name + Status badge (tappable to expand/collapse)
-        var headerGrid = new Grid { Tag = court.CourtId };
         if (court.IsInUse)
         {
-            headerGrid.Tapped += CourtCard_HeaderTapped;
+            card.Tapped += CourtCard_HeaderTapped;
         }
+
+        var stack = new StackPanel { Spacing = 8 };
+
+        // Header row: Court name + Status badge
+        var headerGrid = new Grid { Tag = court.CourtId };
 
         var courtNamePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         courtNamePanel.Children.Add(new FontIcon
@@ -924,7 +925,6 @@ public sealed partial class CourtUsageLogPage : Page
         WalkInTypeComboBox.SelectedIndex = 0;
         _selectedWalkInCourse = null;
         WalkInCourseSearchBox.Text = string.Empty;
-        WalkInSelectedCoursePreview.Visibility = Visibility.Collapsed;
         RenderWalkInCourseList(_allWalkInCourses);
         WalkInNameTextBox.Text = string.Empty;
         WalkInPhoneTextBox.Text = string.Empty;
@@ -1178,10 +1178,6 @@ public sealed partial class CourtUsageLogPage : Page
             _selectedWalkInCourse = _allWalkInCourses.FirstOrDefault(c => c.CompositeKey == compositeKey);
             if (_selectedWalkInCourse != null)
             {
-                WalkInSelectedCourseText.Text =
-                    $"{_selectedWalkInCourse.ClassId} — {_selectedWalkInCourse.ClassTitle} ({_selectedWalkInCourse.TrainerDisplayName})";
-                WalkInSelectedCoursePreview.Visibility = Visibility.Visible;
-
                 // Refresh visual state
                 var keyword = WalkInCourseSearchBox.Text?.Trim() ?? string.Empty;
                 var list = string.IsNullOrEmpty(keyword) ? _allWalkInCourses
@@ -1250,6 +1246,18 @@ public sealed partial class CourtUsageLogPage : Page
 
     private void CourtCard_HeaderTapped(object sender, TappedRoutedEventArgs e)
     {
+        // Ignore taps on interactive controls (Button, ComboBox, TextBox) inside expanded card
+        if (e.OriginalSource is DependencyObject source)
+        {
+            var current = source;
+            while (current != null && current != sender)
+            {
+                if (current is Button or ComboBox or TextBox)
+                    return;
+                current = VisualTreeHelper.GetParent(current);
+            }
+        }
+
         if (sender is not FrameworkElement el) return;
         var courtId = el.Tag?.ToString() ?? "";
         var court = VM.CourtStatuses.FirstOrDefault(c => c.CourtId == courtId);

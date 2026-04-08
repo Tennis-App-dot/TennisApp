@@ -49,6 +49,15 @@ public partial class App : Application
                 {
                     services.AddSingleton(DatabaseService);
                     services.AddSingleton<FontService>();
+
+                    // ✅ Register ViewModels — DI จะ inject DatabaseService ให้อัตโนมัติ
+                    services.AddTransient<TennisApp.Presentation.ViewModels.CourtPageViewModel>();
+                    services.AddTransient<TennisApp.Presentation.ViewModels.TrainerPageViewModel>();
+                    services.AddTransient<TennisApp.Presentation.ViewModels.TraineePageViewModel>();
+                    services.AddTransient<TennisApp.Presentation.ViewModels.CoursePageViewModel>();
+                    services.AddTransient<TennisApp.Presentation.ViewModels.BookingPageViewModel>();
+                    services.AddTransient<TennisApp.Presentation.ViewModels.RegisterCoursePageViewModel>();
+                    services.AddTransient<TennisApp.Presentation.ViewModels.CourtUsageLogPageViewModel>();
                 })
             );
 
@@ -221,6 +230,11 @@ public partial class App : Application
 
             // ✅ โหลดข้อมูลประเภทคอร์ส + ราคาจาก DB เข้า cache
             await Helpers.CoursePricingHelper.LoadFromDatabaseAsync(DatabaseService);
+
+            // ✅ Seed ข้อมูลตัวอย่างถ้า database ว่าง (สำหรับดู UI)
+            // 💡 เปลี่ยนเป็น ResetAndSeedAsync เพื่อ force reset ข้อมูลใหม่
+            // 💡 เปลี่ยนกลับเป็น SeedIfEmptyAsync เมื่อดู UI เสร็จแล้ว
+            await Services.SeedDataService.SeedIfEmptyAsync(DatabaseService);
 
             System.Diagnostics.Debug.WriteLine($"Database Path: {DatabaseService.GetDatabasePath()}");
             System.Diagnostics.Debug.WriteLine($"Database Ready: {DatabaseService.IsDatabaseReady()}");

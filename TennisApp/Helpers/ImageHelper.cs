@@ -7,6 +7,7 @@ using Windows.Storage.Streams;
 using System.Runtime.InteropServices.WindowsRuntime;
 using TennisApp.Presentation.Dialogs;
 using SkiaSharp;
+using System.Linq;
 
 namespace TennisApp.Helpers;
 
@@ -47,6 +48,7 @@ public static class ImageHelper
 
     /// <summary>
     /// Compress รูปภาพให้มีขนาดไม่เกินที่กำหนด
+    /// ✅ รองรับ EXIF orientation — แก้รูปหมุนจากกล้อง Android
     /// </summary>
     public static async Task<byte[]?> CompressImageAsync(byte[] imageData, int maxSizeKB = 3072)
     {
@@ -54,6 +56,10 @@ public static class ImageHelper
         {
             try
             {
+                // ✅ อ่าน EXIF orientation ก่อน decode
+                var orientation = ReadExifOrientation(imageData);
+                System.Diagnostics.Debug.WriteLine($"📐 EXIF Orientation: {orientation}");
+
                 using var inputStream = new MemoryStream(imageData);
                 using var originalBitmap = SKBitmap.Decode(inputStream);
                 
@@ -65,14 +71,20 @@ public static class ImageHelper
 
                 System.Diagnostics.Debug.WriteLine($"📐 Original dimensions: {originalBitmap.Width}x{originalBitmap.Height}");
 
+                // ✅ แก้ orientation ตาม EXIF metadata
+                using var orientedBitmap = ApplyExifOrientation(originalBitmap, orientation);
+                var workingBitmap = orientedBitmap ?? originalBitmap;
+
+                System.Diagnostics.Debug.WriteLine($"📐 After orientation fix: {workingBitmap.Width}x{workingBitmap.Height}");
+
                 // กำหนด max dimensions
                 int maxWidth = 1920;
                 int maxHeight = 1920;
 
                 // คำนวณขนาดใหม่
                 var (newWidth, newHeight) = CalculateResizeDimensions(
-                    originalBitmap.Width, 
-                    originalBitmap.Height, 
+                    workingBitmap.Width, 
+                    workingBitmap.Height, 
                     maxWidth, 
                     maxHeight
                 );
@@ -82,7 +94,7 @@ public static class ImageHelper
                 // Resize
                 var resizedInfo = new SKImageInfo(newWidth, newHeight);
                 var resizedSampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
-                var resizedBitmap = originalBitmap.Resize(resizedInfo, resizedSampling);
+                var resizedBitmap = workingBitmap.Resize(resizedInfo, resizedSampling);
 
                 if (resizedBitmap == null)
                 {
@@ -121,6 +133,132 @@ public static class ImageHelper
                 return null;
             }
         });
+    }
+
+    /// <summary>
+    /// อ่าน EXIF orientation จาก JPEG byte data
+    /// ค่า orientation: 1=ปกติ, 3=หมุน180, 6=หมุน90CW, 8=หมุน90CCW
+    /// </summary>
+    private static int ReadExifOrientation(byte[] imageData)
+    {
+        try
+        {
+            using var codec = SKCodec.Create(new MemoryStream(imageData));
+            if (codec == null) return 1;
+
+            var origin = codec.EncodedOrigin;
+            return origin switch
+            {
+                SKEncodedOrigin.TopLeft => 1,
+                SKEncodedOrigin.TopRight => 2,
+                SKEncodedOrigin.BottomRight => 3,
+                SKEncodedOrigin.BottomLeft => 4,
+                SKEncodedOrigin.LeftTop => 5,
+                SKEncodedOrigin.RightTop => 6,
+                SKEncodedOrigin.RightBottom => 7,
+                SKEncodedOrigin.LeftBottom => 8,
+                _ => 1
+            };
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ ReadExifOrientation error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// แก้ orientation ของรูปตาม EXIF metadata
+    /// กล้อง Android มักถ่ายเป็น landscape แล้วตั้ง EXIF orientation=6 (หมุน 90° CW)
+    /// </summary>
+    private static SKBitmap? ApplyExifOrientation(SKBitmap bitmap, int orientation)
+    {
+        if (orientation == 1) return null; // ปกติ ไม่ต้องแก้
+
+        try
+        {
+            SKBitmap rotated;
+
+            switch (orientation)
+            {
+                case 2: // Flip horizontal
+                    rotated = new SKBitmap(bitmap.Width, bitmap.Height);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.Scale(-1, 1, bitmap.Width / 2f, 0);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                case 3: // Rotate 180°
+                    rotated = new SKBitmap(bitmap.Width, bitmap.Height);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.RotateDegrees(180, bitmap.Width / 2f, bitmap.Height / 2f);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                case 4: // Flip vertical
+                    rotated = new SKBitmap(bitmap.Width, bitmap.Height);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.Scale(1, -1, 0, bitmap.Height / 2f);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                case 5: // Transpose (flip horizontal + rotate 270°)
+                    rotated = new SKBitmap(bitmap.Height, bitmap.Width);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.Translate(rotated.Width, 0);
+                        canvas.RotateDegrees(90);
+                        canvas.Scale(1, -1, 0, bitmap.Height / 2f);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                case 6: // Rotate 90° CW (most common from Android camera)
+                    rotated = new SKBitmap(bitmap.Height, bitmap.Width);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.Translate(rotated.Width, 0);
+                        canvas.RotateDegrees(90);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                case 7: // Transverse (flip horizontal + rotate 90°)
+                    rotated = new SKBitmap(bitmap.Height, bitmap.Width);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.Translate(0, rotated.Height);
+                        canvas.RotateDegrees(270);
+                        canvas.Scale(-1, 1, bitmap.Width / 2f, 0);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                case 8: // Rotate 270° CW (= 90° CCW)
+                    rotated = new SKBitmap(bitmap.Height, bitmap.Width);
+                    using (var canvas = new SKCanvas(rotated))
+                    {
+                        canvas.Translate(0, rotated.Height);
+                        canvas.RotateDegrees(270);
+                        canvas.DrawBitmap(bitmap, 0, 0);
+                    }
+                    return rotated;
+
+                default:
+                    return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"⚠️ ApplyExifOrientation error: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

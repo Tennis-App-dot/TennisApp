@@ -8,8 +8,12 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using TennisApp.Helpers;
 using TennisApp.Services;
+using SkiaSharp;
+using Windows.Storage.Streams;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace TennisApp.Presentation.Pages;
 
@@ -217,9 +221,9 @@ public sealed partial class ReportsPage : Page
 
             // Detail Sections
             DetailSections.Children.Clear();
+            DetailSections.Children.Add(BuildRevenueChartCard(paidUsageSummary, courseRegRevenue));
             DetailSections.Children.Add(BuildPaidDetailCard(paidResSummary, paidUsageSummary));
             DetailSections.Children.Add(BuildCourseDetailCard(courseResSummary, courseUsageSummary, courseRegRevenue));
-            DetailSections.Children.Add(BuildInsightsCard(startDate));
             DetailSections.Children.Add(BuildCourtRankingCard(courtRanking));
             DetailSections.Children.Add(BuildSystemStatsCard(systemStats));
         }
@@ -454,6 +458,292 @@ public sealed partial class ReportsPage : Page
     }
 
     // ====================================================================
+    // Revenue Chart Card (SkiaSharp bar chart)
+    // ====================================================================
+
+    private Border BuildRevenueChartCard(UsageSummary paidUsage, CourseRegistrationRevenue courseReg)
+    {
+        var card = new Border
+        {
+            Background = new SolidColorBrush(Microsoft.UI.Colors.White),
+            CornerRadius = new CornerRadius(10),
+            BorderBrush = new SolidColorBrush(UIHelper.ParseColor("#E8E8E8")),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(18, 16, 18, 16)
+        };
+
+        var stack = new StackPanel { Spacing = 10 };
+
+        // Header
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        header.Children.Add(new FontIcon
+        {
+            Glyph = "\uE9D2", FontSize = 18,
+            Foreground = new SolidColorBrush(UIHelper.ParseColor("#4A148C"))
+        });
+        header.Children.Add(new TextBlock
+        {
+            Text = "กราฟรายได้", FontSize = 16,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(UIHelper.ParseColor("#333333"))
+        });
+        stack.Children.Add(header);
+
+        stack.Children.Add(new Border
+        {
+            Background = new SolidColorBrush(UIHelper.ParseColor("#F0F0F0")),
+            Height = 1, Margin = new Thickness(0, 2, 0, 2)
+        });
+
+        var paidRevenue = paidUsage.TotalRevenue;
+        var courseRevenue = courseReg.TotalRevenue;
+        var totalRevenue = paidRevenue + courseRevenue;
+
+        if (totalRevenue > 0)
+        {
+            // Create chart image using SkiaSharp
+            var chartImage = new Image
+            {
+                Height = 240,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            _ = RenderRevenueChartAsync(chartImage, paidRevenue, courseRevenue);
+            stack.Children.Add(chartImage);
+
+            // Legend
+            var legend = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 20, HorizontalAlignment = HorizontalAlignment.Center };
+
+            var paidLegend = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            paidLegend.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(UIHelper.ParseColor("#7B1FA2")),
+                Width = 12, Height = 12, CornerRadius = new CornerRadius(3)
+            });
+            paidLegend.Children.Add(new TextBlock
+            {
+                Text = $"เช่าสนาม ฿{paidRevenue:N0}", FontSize = 12,
+                Foreground = new SolidColorBrush(UIHelper.ParseColor("#555555"))
+            });
+            legend.Children.Add(paidLegend);
+
+            var courseLegend = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            courseLegend.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(UIHelper.ParseColor("#1565C0")),
+                Width = 12, Height = 12, CornerRadius = new CornerRadius(3)
+            });
+            courseLegend.Children.Add(new TextBlock
+            {
+                Text = $"คอร์สเรียน ฿{courseRevenue:N0}", FontSize = 12,
+                Foreground = new SolidColorBrush(UIHelper.ParseColor("#555555"))
+            });
+            legend.Children.Add(courseLegend);
+
+            stack.Children.Add(legend);
+
+            // Percentage text
+            var paidPercent = totalRevenue > 0 ? (double)paidRevenue / totalRevenue * 100 : 0;
+            var coursePercent = totalRevenue > 0 ? (double)courseRevenue / totalRevenue * 100 : 0;
+            stack.Children.Add(new TextBlock
+            {
+                Text = $"สัดส่วน: เช่าสนาม {paidPercent:0.0}% / คอร์ส {coursePercent:0.0}%",
+                FontSize = 12,
+                Foreground = new SolidColorBrush(UIHelper.ParseColor("#999999")),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0)
+            });
+        }
+        else
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = "ยังไม่มีข้อมูลรายได้",
+                FontSize = 13,
+                Foreground = new SolidColorBrush(UIHelper.ParseColor("#999999")),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 20, 0, 20)
+            });
+        }
+
+        card.Child = stack;
+        return card;
+    }
+
+    private static async Task RenderRevenueChartAsync(Image imageControl, int paidRevenue, int courseRevenue)
+    {
+        try
+        {
+            var bytes = await Task.Run(() =>
+            {
+                const int width = 680;
+                const int height = 320;
+                const int barWidth = 130;
+                const int barGap = 50;
+                const int chartLeft = 80;
+                const int chartRight = 40;
+                const int chartBottom = height - 55;
+                const int chartTop = 50;
+                int chartHeight = chartBottom - chartTop;
+                int chartContentWidth = width - chartLeft - chartRight;
+
+                using var surface = SKSurface.Create(new SKImageInfo(width, height));
+                var canvas = surface.Canvas;
+
+                // ── Background: subtle gradient ──
+                using var bgPaint = new SKPaint { IsAntialias = true };
+                bgPaint.Shader = SKShader.CreateLinearGradient(
+                    new SKPoint(0, 0), new SKPoint(0, height),
+                    [SKColor.Parse("#FAFAFA"), SKColor.Parse("#F3F0F7")],
+                    SKShaderTileMode.Clamp);
+                canvas.DrawRoundRect(new SKRoundRect(new SKRect(0, 0, width, height), 16), bgPaint);
+
+                var maxValue = Math.Max(Math.Max(paidRevenue, courseRevenue), 1);
+
+                // ── Grid lines (dashed) + Y-axis labels ──
+                using var gridPaint = new SKPaint
+                {
+                    Color = SKColor.Parse("#E8E0F0"),
+                    StrokeWidth = 1,
+                    IsAntialias = true,
+                    PathEffect = SKPathEffect.CreateDash([6f, 4f], 0)
+                };
+                using var yLabelPaint = new SKPaint { Color = SKColor.Parse("#AAAAAA"), IsAntialias = true };
+                using var yLabelFont = new SKFont(SKTypeface.Default, 19);
+
+                for (int i = 0; i <= 4; i++)
+                {
+                    var y = chartBottom - (chartHeight * i / 4f);
+                    var value = maxValue * i / 4;
+                    canvas.DrawLine(chartLeft, y, width - chartRight, y, gridPaint);
+                    var labelText = value >= 1000 ? $"{value / 1000:N0}k" : value.ToString("N0");
+                    var labelWidth = yLabelFont.MeasureText(labelText);
+                    canvas.DrawText(labelText, chartLeft - labelWidth - 10, y + 6, SKTextAlign.Left, yLabelFont, yLabelPaint);
+                }
+
+                // ── Baseline ──
+                using var basePaint = new SKPaint { Color = SKColor.Parse("#D0C4E0"), StrokeWidth = 1.5f, IsAntialias = true };
+                canvas.DrawLine(chartLeft, chartBottom, width - chartRight, chartBottom, basePaint);
+
+                // ── Bar positions (centered) ──
+                int totalBarsWidth = barWidth * 2 + barGap;
+                int barsStartX = chartLeft + (chartContentWidth - totalBarsWidth) / 2;
+                int bar1X = barsStartX;
+                int bar2X = barsStartX + barWidth + barGap;
+
+                // ── Helper: Draw a bar with gradient + shadow + rounded top ──
+                void DrawBar(int x, float barH, SKColor colorTop, SKColor colorBot, SKColor shadow)
+                {
+                    if (barH < 4) barH = 4; // minimum visible height
+                    var rect = new SKRect(x, chartBottom - barH, x + barWidth, chartBottom);
+                    var rr = new SKRoundRect(rect, 12, 12);
+
+                    // Shadow
+                    using var shadowPaint = new SKPaint
+                    {
+                        Color = shadow,
+                        IsAntialias = true,
+                        MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 6)
+                    };
+                    var shadowRect = new SKRect(rect.Left + 3, rect.Top + 4, rect.Right + 3, rect.Bottom + 2);
+                    canvas.DrawRoundRect(new SKRoundRect(shadowRect, 12, 12), shadowPaint);
+
+                    // Gradient fill
+                    using var barPaint = new SKPaint { IsAntialias = true };
+                    barPaint.Shader = SKShader.CreateLinearGradient(
+                        new SKPoint(x, rect.Top), new SKPoint(x, chartBottom),
+                        [colorTop, colorBot],
+                        SKShaderTileMode.Clamp);
+                    canvas.DrawRoundRect(rr, barPaint);
+
+                    // Highlight strip (glossy effect on left)
+                    using var glossPaint = new SKPaint { IsAntialias = true };
+                    glossPaint.Shader = SKShader.CreateLinearGradient(
+                        new SKPoint(x, rect.Top), new SKPoint(x + barWidth * 0.35f, rect.Top),
+                        [new SKColor(255, 255, 255, 50), new SKColor(255, 255, 255, 0)],
+                        SKShaderTileMode.Clamp);
+                    canvas.DrawRoundRect(rr, glossPaint);
+                }
+
+                // ── Bar 1: Paid ──
+                float bar1H = maxValue > 0 ? (float)paidRevenue / maxValue * chartHeight : 0;
+                DrawBar(bar1X, bar1H, SKColor.Parse("#9C27B0"), SKColor.Parse("#6A1B9A"), new SKColor(106, 27, 154, 40));
+
+                // ── Bar 2: Course ──
+                float bar2H = maxValue > 0 ? (float)courseRevenue / maxValue * chartHeight : 0;
+                DrawBar(bar2X, bar2H, SKColor.Parse("#42A5F5"), SKColor.Parse("#1565C0"), new SKColor(21, 101, 192, 40));
+
+                // ── Value badges on top of bars ──
+                void DrawValueBadge(int x, float barH, string text, SKColor bgColor)
+                {
+                    using var badgeFont = new SKFont(SKTypeface.Default, 21) { Embolden = true };
+                    float textWidth = badgeFont.MeasureText(text);
+                    float badgeW = textWidth + 20;
+                    float badgeH = 28;
+                    float badgeX = x + (barWidth - badgeW) / 2;
+                    float badgeY = chartBottom - Math.Max(barH, 4) - badgeH - 8;
+                    if (badgeY < chartTop - 10) badgeY = chartTop - 10;
+
+                    // Badge background
+                    var badgeRect = new SKRect(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH);
+                    using var badgeBgPaint = new SKPaint { Color = bgColor, IsAntialias = true };
+                    canvas.DrawRoundRect(new SKRoundRect(badgeRect, 8, 8), badgeBgPaint);
+
+                    // Badge text
+                    using var badgeTextPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
+                    canvas.DrawText(text, badgeX + 10, badgeY + 20, SKTextAlign.Left, badgeFont, badgeTextPaint);
+                }
+
+                DrawValueBadge(bar1X, bar1H, $"{paidRevenue:N0}", SKColor.Parse("#7B1FA2"));
+                DrawValueBadge(bar2X, bar2H, $"{courseRevenue:N0}", SKColor.Parse("#1565C0"));
+
+                // ── X-axis labels (below bars) ──
+                using var xLabelPaint = new SKPaint { Color = SKColor.Parse("#555555"), IsAntialias = true };
+                using var xLabelFont = new SKFont(SKTypeface.Default, 20) { Embolden = true };
+
+                // Paid label with colored dot
+                using var paidDotPaint = new SKPaint { Color = SKColor.Parse("#9C27B0"), IsAntialias = true };
+                float paidLabelCenterX = bar1X + barWidth / 2f;
+                canvas.DrawCircle(paidLabelCenterX - 28, chartBottom + 24, 5, paidDotPaint);
+                canvas.DrawText("Paid", paidLabelCenterX - 18, chartBottom + 30, SKTextAlign.Left, xLabelFont, xLabelPaint);
+
+                // Course label with colored dot
+                using var courseDotPaint = new SKPaint { Color = SKColor.Parse("#1565C0"), IsAntialias = true };
+                float courseLabelCenterX = bar2X + barWidth / 2f;
+                canvas.DrawCircle(courseLabelCenterX - 38, chartBottom + 24, 5, courseDotPaint);
+                canvas.DrawText("Course", courseLabelCenterX - 28, chartBottom + 30, SKTextAlign.Left, xLabelFont, xLabelPaint);
+
+                // ── Total label at top center ──
+                var total = paidRevenue + courseRevenue;
+                using var totalFont = new SKFont(SKTypeface.Default, 16);
+                using var totalPaint = new SKPaint { Color = SKColor.Parse("#888888"), IsAntialias = true };
+                var totalText = $"Total: {total:N0}";
+                var totalWidth = totalFont.MeasureText(totalText);
+                canvas.DrawText(totalText, (width - totalWidth) / 2, 24, SKTextAlign.Left, totalFont, totalPaint);
+
+                // Encode to PNG
+                using var image = surface.Snapshot();
+                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                return data.ToArray();
+            });
+
+            // Set image source on UI thread
+            using var stream = new InMemoryRandomAccessStream();
+            await stream.WriteAsync(bytes.AsBuffer());
+            stream.Seek(0);
+
+            var bitmap = new BitmapImage();
+            await bitmap.SetSourceAsync(stream);
+            imageControl.Source = bitmap;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ RenderRevenueChart Error: {ex.Message}");
+        }
+    }
+
+    // ====================================================================
     // Build Detail Cards
     // ====================================================================
 
@@ -580,224 +870,6 @@ public sealed partial class ReportsPage : Page
         grid.Children.Add(valueTxt);
 
         return grid;
-    }
-
-    // ====================================================================
-    // Insights Card (Top Customers + Utilization)
-    // ====================================================================
-
-    private Border BuildInsightsCard(string? startDate)
-    {
-        var card = new Border
-        {
-            Background = new SolidColorBrush(Microsoft.UI.Colors.White),
-            CornerRadius = new CornerRadius(10),
-            BorderBrush = new SolidColorBrush(UIHelper.ParseColor("#E8E8E8")),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(18, 16, 18, 16)
-        };
-
-        var stack = new StackPanel { Spacing = 10 };
-
-        // Header
-        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        header.Children.Add(new FontIcon
-        {
-            Glyph = "\uE946", FontSize = 18,
-            Foreground = new SolidColorBrush(UIHelper.ParseColor("#FF6F00"))
-        });
-        header.Children.Add(new TextBlock
-        {
-            Text = "Insights", FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(UIHelper.ParseColor("#333333"))
-        });
-        stack.Children.Add(header);
-
-        stack.Children.Add(new Border
-        {
-            Background = new SolidColorBrush(UIHelper.ParseColor("#F0F0F0")),
-            Height = 1, Margin = new Thickness(0, 2, 0, 2)
-        });
-
-        // Load data async and populate
-        _ = PopulateInsightsAsync(stack, startDate);
-
-        card.Child = stack;
-        return card;
-    }
-
-    private async Task PopulateInsightsAsync(StackPanel stack, string? startDate)
-    {
-        try
-        {
-            // Top 5 customers
-            var topCustomers = await QueryTopCustomersAsync(startDate, 5);
-            if (topCustomers.Count > 0)
-            {
-                stack.Children.Add(new TextBlock
-                {
-                    Text = "🏆 ลูกค้าจองบ่อยสุด",
-                    FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(UIHelper.ParseColor("#333333")),
-                    Margin = new Thickness(0, 4, 0, 2)
-                });
-
-                for (int i = 0; i < topCustomers.Count; i++)
-                {
-                    var (name, count) = topCustomers[i];
-                    var medal = i switch { 0 => "🥇", 1 => "🥈", 2 => "🥉", _ => $"  {i + 1}." };
-                    stack.Children.Add(BuildStatRow($"{medal} {name}", $"{count} ครั้ง", i == 0 ? "#FF6F00" : null));
-                }
-            }
-            else
-            {
-                stack.Children.Add(new TextBlock
-                {
-                    Text = "ยังไม่มีข้อมูลลูกค้า", FontSize = 13,
-                    Foreground = new SolidColorBrush(UIHelper.ParseColor("#999999")),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 6, 0, 6)
-                });
-            }
-
-            // Court utilization rate
-            var utilization = await QueryCourtUtilizationAsync(startDate);
-            if (utilization != null)
-            {
-                stack.Children.Add(new Border
-                {
-                    Background = new SolidColorBrush(UIHelper.ParseColor("#F0F0F0")),
-                    Height = 1, Margin = new Thickness(0, 6, 0, 6)
-                });
-
-                stack.Children.Add(new TextBlock
-                {
-                    Text = "📊 อัตราใช้สนาม",
-                    FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(UIHelper.ParseColor("#333333")),
-                    Margin = new Thickness(0, 0, 0, 2)
-                });
-
-                stack.Children.Add(BuildStatRow("จำนวนชั่วโมงใช้งาน", $"{utilization.TotalHours:0.0} ชม.", null));
-
-                if (utilization.TotalCourts > 0 && utilization.TotalDays > 0)
-                {
-                    // สมมติเปิด 13 ชม./วัน (08:00-21:00)
-                    var maxHours = utilization.TotalCourts * utilization.TotalDays * 13.0;
-                    var rate = maxHours > 0 ? utilization.TotalHours / maxHours * 100 : 0;
-                    stack.Children.Add(BuildStatRow("อัตราการใช้งาน", $"{rate:0.0}%",
-                        rate > 50 ? "#2E7D32" : rate > 20 ? "#FF6F00" : "#C62828"));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ PopulateInsights Error: {ex.Message}");
-        }
-    }
-
-    private record TopCustomer(string Name, int Count);
-    private record UtilizationData(double TotalHours, int TotalCourts, int TotalDays);
-
-    private async Task<List<TopCustomer>> QueryTopCustomersAsync(string? startDate, int limit)
-    {
-        var endDate = GetEndDate();
-        var results = new List<TopCustomer>();
-        try
-        {
-            var dateFilter1 = startDate != null ? " AND p_reserve_date >= @start" : "";
-            var dateFilter2 = startDate != null ? " AND c_reserve_date >= @start" : "";
-            if (endDate != null)
-            {
-                dateFilter1 += " AND p_reserve_date <= @end";
-                dateFilter2 += " AND c_reserve_date <= @end";
-            }
-
-            var sql = $@"SELECT name, SUM(cnt) as total FROM (
-                SELECT p_reserve_name as name, COUNT(*) as cnt
-                FROM PaidCourtReservation WHERE p_status != 'cancelled'{dateFilter1}
-                GROUP BY p_reserve_name
-                UNION ALL
-                SELECT c_reserve_name as name, COUNT(*) as cnt
-                FROM CourseCourtReservation WHERE c_status != 'cancelled'{dateFilter2}
-                GROUP BY c_reserve_name
-            ) GROUP BY name ORDER BY total DESC LIMIT @limit";
-
-            await using var conn = new SqliteConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("@limit", limit);
-            if (startDate != null)
-                cmd.Parameters.AddWithValue("@start", startDate);
-            if (endDate != null)
-                cmd.Parameters.AddWithValue("@end", endDate);
-
-            await using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-                results.Add(new TopCustomer(reader.GetString(0), reader.GetInt32(1)));
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ TopCustomers Error: {ex.Message}");
-        }
-        return results;
-    }
-
-    private async Task<UtilizationData?> QueryCourtUtilizationAsync(string? startDate)
-    {
-        try
-        {
-            var endDate = GetEndDate();
-            var dateFilter1 = startDate != null ? " AND date(p_checkin_time) >= @start" : "";
-            var dateFilter2 = startDate != null ? " AND date(c_checkin_time) >= @start" : "";
-            if (endDate != null)
-            {
-                dateFilter1 += " AND date(p_checkin_time) <= @end";
-                dateFilter2 += " AND date(c_checkin_time) <= @end";
-            }
-
-            var sql = $@"SELECT COALESCE(SUM(hours), 0) FROM (
-                SELECT p_log_duration as hours FROM PaidCourtUseLog WHERE p_log_status='completed'{dateFilter1}
-                UNION ALL
-                SELECT c_log_duration as hours FROM CourseCourtUseLog WHERE c_log_status='completed'{dateFilter2}
-            )";
-
-            await using var conn = new SqliteConnection(_connectionString);
-            await conn.OpenAsync();
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
-            if (startDate != null)
-                cmd.Parameters.AddWithValue("@start", startDate);
-            if (endDate != null)
-                cmd.Parameters.AddWithValue("@end", endDate);
-
-            var totalHours = Convert.ToDouble(await cmd.ExecuteScalarAsync());
-
-            // Count active courts
-            await using var cmd2 = conn.CreateCommand();
-            cmd2.CommandText = "SELECT COUNT(*) FROM Court WHERE court_status='1' AND court_id != '00'";
-            var totalCourts = Convert.ToInt32(await cmd2.ExecuteScalarAsync());
-
-            // Calculate days in period
-            var days = _selectedPeriod switch
-            {
-                "today" => 1,
-                "7" => 7,
-                "30" => 30,
-                "custom" when _customStartDate.HasValue && _customEndDate.HasValue
-                    => Math.Max(1, (_customEndDate.Value - _customStartDate.Value).Days + 1),
-                _ => Math.Max(1, (int)(DateTime.Today - new DateTime(2025, 1, 1)).TotalDays)
-            };
-
-            return new UtilizationData(totalHours, totalCourts, days);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ Utilization Error: {ex.Message}");
-            return null;
-        }
     }
 
     // ====================================================================

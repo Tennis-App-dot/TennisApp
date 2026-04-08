@@ -15,6 +15,9 @@ public sealed partial class CourtPage : Page
     public CourtPageViewModel VM { get; } = new();
     private NotificationService? _notify;
     private string _currentFilter = "all";
+    private bool _isDataLoaded;
+    private int _headerTapCount;
+    private DateTime _lastHeaderTap = DateTime.MinValue;
 
     public CourtPage()
     {
@@ -27,19 +30,15 @@ public sealed partial class CourtPage : Page
     {
         _notify = NotificationService.GetFromPage(this);
 
-#if DEBUG
-        if (FindName("DebugPanel") is StackPanel debugPanel)
-            debugPanel.Visibility = Visibility.Visible;
-#else
-        if (FindName("DebugPanel") is StackPanel debugPanel)
-            debugPanel.Visibility = Visibility.Collapsed;
-#endif
-
         UpdateFilterVisuals();
+
+        // ✅ Skip reload ถ้าข้อมูลยังอยู่ใน memory (เช่น กลับจากหน้าอื่น)
+        if (_isDataLoaded && VM.Courts.Count > 0) return;
 
         try
         {
             await VM.LoadCourtsAsync();
+            _isDataLoaded = true;
         }
         catch (Exception ex)
         {
@@ -207,83 +206,27 @@ public sealed partial class CourtPage : Page
         await VM.ApplyFilterAsync(_currentFilter);
     }
 
-#if DEBUG
-    private async void BtnDebugTest_Click(object sender, RoutedEventArgs e)
+    private void HeaderTitle_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        try
-        {
-            var databaseService = ((App)Application.Current).DatabaseService;
-            databaseService.EnsureInitialized();
-            var courts = await databaseService.Courts.GetAllCourtsAsync();
-            await VM.LoadCourtsAsync();
-            _notify?.ShowInfo($"Database OK — พบ {courts.Count} สนาม");
-        }
-        catch (Exception ex)
-        {
-            _notify?.ShowError($"Test failed: {ex.Message}");
-        }
-    }
+        var now = DateTime.Now;
+        if ((now - _lastHeaderTap).TotalSeconds > 2)
+            _headerTapCount = 0;
 
-    private async void BtnResetDatabase_Click(object sender, RoutedEventArgs e)
-    {
-        try
+        _lastHeaderTap = now;
+        _headerTapCount++;
+
+        if (_headerTapCount >= 5)
         {
-            bool confirmed = false;
-            if (_notify != null)
+            _headerTapCount = 0;
+            if (DebugPanel.Visibility == Visibility.Collapsed)
             {
-                confirmed = await _notify.ShowConfirmAsync(
-                    "ยืนยันการรีเซ็ต",
-                    "คุณต้องการลบฐานข้อมูลทั้งหมดแล้วสร้างใหม่เปล่าๆ ใช่หรือไม่?\n\n⚠️ ข้อมูลทั้งหมดจะหายไป",
-                    this.XamlRoot!);
+                DebugPanel.Visibility = Visibility.Visible;
+                _notify?.ShowWarning("เปิดโหมดนักพัฒนา");
             }
             else
             {
-                var dialog = new ContentDialog
-                {
-                    Title = "ยืนยันการรีเซ็ต",
-                    Content = "คุณต้องการลบฐานข้อมูลทั้งหมดแล้วสร้างใหม่เปล่าๆ ใช่หรือไม่?\n\n⚠️ ข้อมูลทั้งหมดจะหายไป",
-                    PrimaryButtonText = "ใช่",
-                    CloseButtonText = "ไม่",
-                    DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = this.XamlRoot
-                };
-                confirmed = await dialog.ShowAsync() == ContentDialogResult.Primary;
+                DebugPanel.Visibility = Visibility.Collapsed;
             }
-
-            if (!confirmed) return;
-
-            var databaseService = ((App)Application.Current).DatabaseService;
-            await databaseService.ResetDatabaseAsync();
-            await VM.LoadCourtsAsync();
-            _notify?.ShowSuccess("รีเซ็ตฐานข้อมูลเรียบร้อยแล้ว (เริ่มจากฐานข้อมูลเปล่า)");
-        }
-        catch (Exception ex)
-        {
-            _notify?.ShowError($"ไม่สามารถรีเซ็ตฐานข้อมูลได้: {ex.Message}");
-        }
-    }
-
-    private async void BtnCheckDatabase_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var databaseService = ((App)Application.Current).DatabaseService;
-            databaseService.EnsureInitialized();
-            var tables = await databaseService.GetAllTableNamesAsync();
-            var rowCounts = await databaseService.GetTableRowCountsAsync();
-
-            var message = $"Tables: {tables.Count}\n";
-            foreach (var table in tables)
-            {
-                var count = rowCounts.ContainsKey(table) ? rowCounts[table] : 0;
-                message += $"• {table}: {count} rows\n";
-            }
-
-            _notify?.ShowInfo(message, "Database Status");
-        }
-        catch (Exception ex)
-        {
-            _notify?.ShowError($"ไม่สามารถตรวจสอบฐานข้อมูลได้: {ex.Message}");
         }
     }
 
@@ -325,5 +268,4 @@ public sealed partial class CourtPage : Page
             _notify?.ShowError($"ไม่สามารถล้างข้อมูลได้: {ex.Message}");
         }
     }
-#endif
 }

@@ -59,7 +59,8 @@
                        Text="จัดการพื้นที่สนาม"
                        FontSize="26" FontWeight="ExtraBold"
                        Foreground="#1A1A2E"
-                       VerticalAlignment="Center"/>
+                       VerticalAlignment="Center"
+                       Tapped="HeaderTitle_Tapped"/>
 
             <Button x:Name="BtnAdd" Grid.Column="1"
                     Click="BtnAdd_Click"
@@ -270,28 +271,14 @@
             </ListView>
         </Grid>
 
-        <!-- Debug Panel -->
+        <!-- Hidden Debug Panel (tap header 5 times to reveal) -->
         <StackPanel x:Name="DebugPanel"
                     Grid.Row="3"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="8"
-                    Margin="0,8,0,8">
-            <Button x:Name="BtnDebugTest"
-                    Content="Test DB"
-                    Click="BtnDebugTest_Click"
-                    Background="Orange" Foreground="White"
-                    FontSize="12" Padding="8,4"/>
-            <Button x:Name="BtnResetDatabase"
-                    Content="Reset DB"
-                    Click="BtnResetDatabase_Click"
-                    Background="Red" Foreground="White"
-                    FontSize="12" Padding="8,4"/>
-            <Button x:Name="BtnCheckDatabase"
-                    Content="Check DB"
-                    Click="BtnCheckDatabase_Click"
-                    Background="Blue" Foreground="White"
-                    FontSize="12" Padding="8,4"/>
+                    Margin="0,8,0,8"
+                    Visibility="Collapsed">
             <Button x:Name="BtnClearData"
                     Content="Clear Data"
                     Click="BtnClearData_Click"

@@ -109,20 +109,13 @@ public partial class BookingPageViewModel : ObservableObject
     // Constructor
     // ========================================================================
 
-    public BookingPageViewModel()
-    {
-        System.Diagnostics.Debug.WriteLine("📅 BookingPageViewModel constructor เริ่มทำงาน");
+    public BookingPageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
 
-        try
-        {
-            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
-            _databaseService.EnsureInitialized();
-            System.Diagnostics.Debug.WriteLine("✅ DatabaseService สร้างสำเร็จ");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ BookingPageViewModel constructor error: {ex.Message}");
-        }
+    public BookingPageViewModel(DatabaseService databaseService)
+    {
+        _databaseService = databaseService;
+        _databaseService.EnsureInitialized();
+        System.Diagnostics.Debug.WriteLine("✅ BookingPageViewModel created via DI");
     }
 
     // ========================================================================

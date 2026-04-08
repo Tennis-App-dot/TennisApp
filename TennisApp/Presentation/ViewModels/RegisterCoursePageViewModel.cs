@@ -43,19 +43,12 @@ public partial class RegisterCoursePageViewModel : ObservableObject
         "นามสกุล"
     };
 
-    public RegisterCoursePageViewModel()
+    public RegisterCoursePageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
+
+    public RegisterCoursePageViewModel(DatabaseService databaseService)
     {
-        System.Diagnostics.Debug.WriteLine("RegisterCoursePageViewModel: Constructor started");
-        
-        try
-        {
-            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
-            System.Diagnostics.Debug.WriteLine("✅ DatabaseService created successfully");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ RegisterCoursePageViewModel constructor error: {ex.Message}");
-        }
+        _databaseService = databaseService;
+        System.Diagnostics.Debug.WriteLine("✅ RegisterCoursePageViewModel created via DI");
     }
 
     /// <summary>

@@ -54,9 +54,12 @@ public partial class CoursePageViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<string> _trainerNames = new();
 
-    public CoursePageViewModel()
+    public CoursePageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
+
+    public CoursePageViewModel(DatabaseService databaseService)
     {
-        _database = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
+        _database = databaseService;
+        System.Diagnostics.Debug.WriteLine("✅ CoursePageViewModel created via DI");
     }
 
     [RelayCommand]

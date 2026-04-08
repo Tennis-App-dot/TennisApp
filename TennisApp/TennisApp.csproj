@@ -9,7 +9,7 @@
         <TargetPlatformVersion Condition="$(TargetFramework.Contains('-android'))">35.0</TargetPlatformVersion>
         <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
 
-        <ApplicationTitle>TennisApp</ApplicationTitle>
+        <ApplicationTitle>Talent Tennis</ApplicationTitle>
         <ApplicationId>com.companyname.TennisApp</ApplicationId>
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
         <ApplicationVersion>1</ApplicationVersion>
@@ -81,6 +81,20 @@
         <Page Update="Presentation\Dialogs\DatePickerDialog.xaml" Generator="MSBuild:Compile" />
     </ItemGroup>
 
+    <!-- ✅ App Icon: โลโก้เล็กลงนิดเดียว (padding 18%) -->
+    <ItemGroup>
+        <UnoIcon Include="Assets\Icons\icon.svg"
+                 ForegroundFile="Assets\Icons\talent_tennis_logo.png"
+                 Color="#FFFFFF" />
+    </ItemGroup>
+
+    <!-- ✅ Splash Screen: โลโก้ใหญ่ขึ้น (padding 4%) พื้นขาว -->
+    <ItemGroup>
+        <UnoSplashScreen Include="Assets\Splash\talent_tennis_splash.png"
+                         Color="#FFFFFF"
+                         BaseSize="768,768" />
+    </ItemGroup>
+
     <!-- Assets folders -->
     <ItemGroup>
         <Folder Include="Assets\Courts\" />
@@ -103,5 +117,8 @@
         <AndroidAsset Include="Assets\Fonts\NotoSansThai-Regular.ttf" Link="Assets\Fonts\NotoSansThai-Regular.ttf" />
         <AndroidAsset Include="Assets\Fonts\NotoSansThai-Bold.ttf" Link="Assets\Fonts\NotoSansThai-Bold.ttf" />
         <AndroidAsset Include="Assets\Fonts\NotoSansThai-Light.ttf" Link="Assets\Fonts\NotoSansThai-Light.ttf" />
+    </ItemGroup>
+    <ItemGroup>
+      <None Remove="Assets\Splash\splash_screen.svg" />
     </ItemGroup>
 </Project>

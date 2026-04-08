@@ -299,12 +299,6 @@
                                         </Style>
                                     </ListView.ItemContainerStyle>
                                 </ListView>
-                                <Border x:Name="WalkInSelectedCoursePreview" Visibility="Collapsed"
-                                        Background="#F3E5F5" CornerRadius="6" Padding="10,6">
-                                    <TextBlock x:Name="WalkInSelectedCourseText" FontSize="12"
-                                               Foreground="#4A148C" FontWeight="SemiBold"
-                                               TextWrapping="Wrap"/>
-                                </Border>
                             </StackPanel>
 
                             <!-- Row 2: เวลา + เวลาสิ้นสุด -->

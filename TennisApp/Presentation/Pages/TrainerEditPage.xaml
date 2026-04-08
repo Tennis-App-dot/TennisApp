@@ -49,8 +49,8 @@
                     VerticalAlignment="Center"
                     MinHeight="48">
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                    <FontIcon Glyph="&#xE76B;" FontSize="20" Foreground="#424242"/>
-                    <TextBlock Text="กลับ" FontSize="18" Foreground="#424242"
+                    <FontIcon Glyph="&#xE76B;" FontSize="18" Foreground="#424242"/>
+                    <TextBlock Text="กลับ" FontSize="15" Foreground="#424242"
                                VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>

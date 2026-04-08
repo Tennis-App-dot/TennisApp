@@ -451,6 +451,7 @@ public sealed partial class CourseBookingFormPage : Page
             else
             {
                 var dbService = ((App)Application.Current).DatabaseService;
+                dbService.EnsureInitialized();
                 var reserveId = await ReservationIdGenerator.GenerateCourseReservationIdAsync(dbService, DateTime.Now);
                 var reservation = new CourseCourtReservationItem
                 {

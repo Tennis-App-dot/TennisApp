@@ -35,21 +35,12 @@ public partial class TrainerPageViewModel : ObservableObject
     
     public ObservableCollection<TrainerItem> Trainers { get; } = new();
 
-    public TrainerPageViewModel()
+    public TrainerPageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
+
+    public TrainerPageViewModel(DatabaseService databaseService)
     {
-        System.Diagnostics.Debug.WriteLine("TrainerPageViewModel constructor started");
-        
-        try
-        {
-            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
-            System.Diagnostics.Debug.WriteLine("DatabaseService created successfully");
-            System.Diagnostics.Debug.WriteLine("TrainerPageViewModel ready - database connected");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ TrainerPageViewModel constructor error: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"📍 Stack: {ex.StackTrace}");
-        }
+        _databaseService = databaseService;
+        System.Diagnostics.Debug.WriteLine("✅ TrainerPageViewModel created via DI");
     }
 
     [RelayCommand]

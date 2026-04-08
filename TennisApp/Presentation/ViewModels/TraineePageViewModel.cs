@@ -35,19 +35,12 @@ public partial class TraineePageViewModel : ObservableObject
     
     public ObservableCollection<TraineeItem> Trainees { get; } = new();
 
-    public TraineePageViewModel()
+    public TraineePageViewModel() : this(((App)Microsoft.UI.Xaml.Application.Current).DatabaseService) { }
+
+    public TraineePageViewModel(DatabaseService databaseService)
     {
-        System.Diagnostics.Debug.WriteLine("TraineePageViewModel constructor started");
-        
-        try
-        {
-            _databaseService = ((App)Microsoft.UI.Xaml.Application.Current).DatabaseService;
-            System.Diagnostics.Debug.WriteLine("DatabaseService created successfully");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"❌ TraineePageViewModel constructor error: {ex.Message}");
-        }
+        _databaseService = databaseService;
+        System.Diagnostics.Debug.WriteLine("✅ TraineePageViewModel created via DI");
     }
 
     [RelayCommand]

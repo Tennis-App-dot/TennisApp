@@ -192,28 +192,9 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:PaidCourtReservationItem">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="52"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Timeline indicator -->
-                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                <TextBlock Text="{x:Bind ReserveTimeDisplay}" FontSize="11"
-                                           FontWeight="Bold" Foreground="#4A148C"
-                                           HorizontalAlignment="Center"/>
-                                <Ellipse Width="10" Height="10" Fill="#4A148C"
-                                         HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                                <Border Width="2" Background="#E0D6F0"
-                                        HorizontalAlignment="Center"
-                                        MinHeight="60"/>
-                            </StackPanel>
-
-                            <!-- Card -->
-                            <Border Grid.Column="1" Background="White" CornerRadius="10"
-                                    BorderBrush="#E8E8E8" BorderThickness="1"
-                                    Padding="16,14">
+                        <Border Background="White" CornerRadius="10"
+                                BorderBrush="#E8E8E8" BorderThickness="1"
+                                Padding="16,14">
                                 <Grid RowSpacing="10">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -305,21 +286,11 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
             </RefreshContainer>
         </Grid>
 
-        <!-- ══ FAB: Floating Action Button ═══════════════════ -->
-        <Button Grid.RowSpan="5" Click="BtnAddBooking_Click"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                Margin="0,0,20,24"
-                Width="56" Height="56" CornerRadius="28"
-                Background="#4A148C" BorderThickness="0"
-                Padding="0">
-            <FontIcon Glyph="&#xE710;" FontSize="22" Foreground="White"/>
-        </Button>
     </Grid>
 </Page>
