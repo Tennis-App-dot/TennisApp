@@ -6,12 +6,25 @@
 
         <!-- Android Configuration -->
         <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
-        <TargetPlatformVersion Condition="$(TargetFramework.Contains('-android'))">35.0</TargetPlatformVersion>
+        <TargetPlatformVersion Condition="$(TargetFramework.Contains('-android'))">35</TargetPlatformVersion>
         <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
 
+        <!-- Release: ??? Fast Deployment, embed assemblies into APK -->
+        <EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Release'">true</EmbedAssembliesIntoApk>
+        <AndroidFastDeploymentType Condition="'$(Configuration)' == 'Release'" />
+        <AndroidUseSharedRuntime Condition="'$(Configuration)' == 'Release'">false</AndroidUseSharedRuntime>
+
+        <!-- Release signing: ใช้ keystore ที่สร้างจาก keytool -->
+        <AndroidKeyStore Condition="'$(Configuration)' == 'Release'">true</AndroidKeyStore>
+        <AndroidSigningKeyStore Condition="'$(Configuration)' == 'Release'">talenttennis.keystore</AndroidSigningKeyStore>
+        <AndroidSigningKeyAlias Condition="'$(Configuration)' == 'Release'">talenttennis</AndroidSigningKeyAlias>
+        <AndroidSigningKeyPass Condition="'$(Configuration)' == 'Release'">env:ANDROID_SIGNING_KEY_PASS</AndroidSigningKeyPass>
+        <AndroidSigningStorePass Condition="'$(Configuration)' == 'Release'">env:ANDROID_SIGNING_STORE_PASS</AndroidSigningStorePass>
+
         <ApplicationTitle>Talent Tennis</ApplicationTitle>
-        <ApplicationId>com.companyname.TennisApp</ApplicationId>
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <ApplicationId>com.arcro.talenttennis</ApplicationId>
+        <AndroidPackageName>com.arcro.talenttennis</AndroidPackageName>
+        <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
         <ApplicationVersion>1</ApplicationVersion>
         <ApplicationPublisher>Arcro</ApplicationPublisher>
         <Description>TennisApp powered by Uno Platform.</Description>
@@ -30,7 +43,6 @@
             Mvvm;
             Configuration;
             Localization;
-            Navigation;
             ThemeService;
             SkiaRenderer;
         </UnoFeatures>

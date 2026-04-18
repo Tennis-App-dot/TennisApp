@@ -485,3 +485,7 @@ $RECYCLE.BIN/
 solution-config.props
 # Publish Profiles
 !**/Properties/PublishProfiles/*.pubxml
+
+# Android Keystore (ห้าม commit!)
+*.keystore
+*.jks

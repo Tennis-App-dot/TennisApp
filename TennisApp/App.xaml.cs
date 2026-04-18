@@ -31,7 +31,6 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         var builder = this.CreateBuilder(args)
-            .UseToolkitNavigation()
             .Configure(host => host
 #if DEBUG
                 .UseEnvironment(Environments.Development)
